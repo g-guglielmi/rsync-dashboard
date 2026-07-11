@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rsync Watch</title>
+<link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar__title">
+    <span class="topbar__mark">&gt;_</span>
+    <div>
+      <h1>RSYNC WATCH</h1>
+      <p class="topbar__sub">unRAID backup monitor</p>
+    </div>
+  </div>
+  <div class="topbar__status">
+    <span class="live-dot" id="live-dot"></span>
+    <span id="last-updated">connecting&hellip;</span>
+  </div>
+</header>
+
+<main id="app">
+  <div class="loading" id="loading">Reading logs&hellip;</div>
+</main>
+
+<template id="tpl-error-state">
+  <div class="empty-state">
+    <p class="empty-state__eyebrow">NO LOGS FOUND</p>
+    <h2>Can't see <code>/data/logs</code></h2>
+    <p>The container can't find any log files at the configured logs path. Double check that
+       your volume mount points at the same folder your scripts write to
+       (<code>/mnt/user/appdata/rsync_logs</code> on unRAID), and that it's mounted read-only
+       into this container at <code>/data/logs</code>.</p>
+  </div>
+</template>
+
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
