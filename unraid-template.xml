@@ -1,19 +1,19 @@
 <?xml version="1.0"?>
 <Container version="2">
   <Name>rsync-dashboard</Name>
-  <Repository>ghcr.io/YOUR-GITHUB-USERNAME/rsync-dashboard:latest</Repository>
+  <Repository>ghcr.io/g-guglielmi/rsync-dashboard:latest</Repository>
   <Registry/>
   <Network>bridge</Network>
   <MyIP/>
   <Shell>sh</Shell>
   <Privileged>false</Privileged>
   <Support/>
-  <Project>https://github.com/YOUR-GITHUB-USERNAME/YOUR-REPO-NAME</Project>
+  <Project>https://github.com/g-guglielmi/rsync-dashboard</Project>
   <Overview>Read-only dashboard for your unRAID rsync backup jobs. Reads the log files your existing rsync scripts already write and shows per-job status, duration, data transferred, and files deleted. Never touches the scripts themselves and can't trigger backups.</Overview>
   <Category>Tools: Backup:</Category>
   <WebUI>http://[IP]:[PORT:8686]/</WebUI>
   <TemplateURL/>
-  <Icon>https://raw.githubusercontent.com/YOUR-GITHUB-USERNAME/YOUR-REPO-NAME/main/icon.png</Icon>
+  <Icon>https://raw.githubusercontent.com/g-guglielmi/rsync-dashboard/main/icon.png</Icon>
   <ExtraParams/>
   <PostArgs/>
   <CPUset/>
