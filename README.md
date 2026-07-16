@@ -65,7 +65,7 @@ unRAID, ever, after the one-time setup below.
    ```bash
    mkdir -p /boot/config/plugins/dockerMan/templates-user
    curl -o /boot/config/plugins/dockerMan/templates-user/rsync-dashboard.xml \
-     https://raw.githubusercontent.com/YOUR-GITHUB-USERNAME/YOUR-REPO-NAME/main/unraid-template.xml
+     https://raw.githubusercontent.com/g-guglielmi/rsync-dashboard/main/unraid-template.xml
    ```
 
 ### Add the container
@@ -119,7 +119,7 @@ If you'd rather not publish a package at all — even privately — you can stil
 build on the unRAID server itself and skip GHCR completely:
 
 ```bash
-git clone https://github.com/YOUR-GITHUB-USERNAME/YOUR-REPO-NAME.git \
+git clone https://github.com/g-guglielmi/rsync-dashboard.git \
   /mnt/user/appdata/rsync-dashboard-src
 cd /mnt/user/appdata/rsync-dashboard-src
 docker build -t rsync-dashboard .
@@ -203,7 +203,7 @@ Environment variables (all optional beyond what the template already sets):
    git init
    git add .
    git commit -m "Initial version of rsync dashboard"
-   git remote add origin https://github.com/YOUR-GITHUB-USERNAME/YOUR-REPO-NAME.git
+   git remote add origin https://github.com/g-guglielmi/rsync-dashboard.git
    git branch -M main
    git push -u origin main
    ```
