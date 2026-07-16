@@ -8,12 +8,21 @@ const STATUS_LABEL = {
   no_data: "No runs yet",
 };
 
-let state = { data: null, tab: "overview" };
+let state = {
+  data: null,
+  tab: "overview",
+  fullRuns: {},              // jobKey -> full run history from /api/jobs/.../runs
+  expandedErrors: new Set(), // `${jobKey}::${filename}` of error rows left open
+};
 
 const app = document.getElementById("app");
 const loading = document.getElementById("loading");
 const lastUpdatedEl = document.getElementById("last-updated");
 const liveDot = document.getElementById("live-dot");
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
 
 function formatBytes(bytes) {
   if (!bytes || bytes <= 0) return "0 B";
@@ -24,7 +33,7 @@ function formatBytes(bytes) {
 }
 
 function formatDuration(seconds) {
-  if (seconds === null || seconds === undefined) return "\u2014";
+  if (seconds === null || seconds === undefined) return "—";
   if (seconds < 60) return `${seconds}s`;
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
@@ -34,7 +43,7 @@ function formatDuration(seconds) {
 }
 
 function formatTimestamp(iso) {
-  if (!iso) return "\u2014";
+  if (!iso) return "—";
   const d = new Date(iso);
   const now = new Date();
   const sameDay = d.toDateString() === now.toDateString();
@@ -46,6 +55,14 @@ function formatTimestamp(iso) {
 }
 
 function jobKey(job) { return `${job.server}::${job.category}`; }
+
+function hasMultipleServers(data) {
+  return new Set(data.jobs.map(j => j.server)).size > 1;
+}
+
+function jobLabel(job, multiServer) {
+  return multiServer ? `${job.server} / ${job.category}` : job.category;
+}
 
 function renderOverview(data) {
   const o = data.overview;
@@ -59,7 +76,7 @@ function renderOverview(data) {
   ];
   return `<div class="overview">${cards.map(c => `
     <div class="stat-card ${c.cls ? "stat-card--" + c.cls : ""}">
-      <div class="stat-card__value">${c.value}</div>
+      <div class="stat-card__value">${escapeHtml(c.value)}</div>
       <div class="stat-card__label">${c.label}</div>
     </div>`).join("")}</div>`;
 }
@@ -67,23 +84,24 @@ function renderOverview(data) {
 function renderPulseStrip(runs, size = 20) {
   const slots = runs.slice(0, 12).reverse();
   return `<div class="pulse-strip" style="height:${size}px">
-    ${slots.map(r => `<div class="pulse-block pulse-block--${r.status}"
-        title="${formatTimestamp(r.start_time)} \u2014 ${STATUS_LABEL[r.status] || r.status}"></div>`).join("")}
+    ${slots.map(r => `<div class="pulse-block pulse-block--${escapeHtml(r.status)}"
+        title="${escapeHtml(formatTimestamp(r.start_time))} — ${escapeHtml(STATUS_LABEL[r.status] || r.status)}"></div>`).join("")}
   </div>`;
 }
 
 function renderTabs(data) {
+  const multiServer = hasMultipleServers(data);
   const tabs = [{ key: "overview", label: "Overview", dotCls: null }].concat(
     data.jobs.map(j => ({
       key: jobKey(j),
-      label: j.category,
+      label: jobLabel(j, multiServer),
       dotCls: j.latest ? j.latest.status : "no_data",
     }))
   );
   return `<div class="tabs">${tabs.map(t => `
-    <button class="tab ${state.tab === t.key ? "active" : ""}" data-tab="${t.key}">
+    <button class="tab ${state.tab === t.key ? "active" : ""}" data-tab="${escapeHtml(t.key)}">
       ${t.dotCls ? `<span class="tab__dot" style="background:var(--${dotColorVar(t.dotCls)})"></span>` : ""}
-      ${t.label}
+      ${escapeHtml(t.label)}
     </button>`).join("")}</div>`;
 }
 
@@ -93,38 +111,41 @@ function dotColorVar(status) {
 }
 
 function renderJobGrid(data) {
+  const multiServer = hasMultipleServers(data);
   return `<div class="job-grid">${data.jobs.map(j => {
     const latest = j.latest;
     const status = latest ? latest.status : "no_data";
-    return `<div class="job-card" data-tab="${jobKey(j)}">
+    return `<div class="job-card" data-tab="${escapeHtml(jobKey(j))}">
       <div class="job-card__head">
-        <div class="job-card__name">${j.category}</div>
-        <span class="badge badge--${status}">${STATUS_LABEL[status] || status}</span>
+        <div class="job-card__name">${escapeHtml(jobLabel(j, multiServer))}</div>
+        <span class="badge badge--${escapeHtml(status)}">${escapeHtml(STATUS_LABEL[status] || status)}</span>
       </div>
       ${latest ? `
-      <div class="job-card__meta">Started <strong>${formatTimestamp(latest.start_time)}</strong> &middot; took <strong>${formatDuration(latest.duration_seconds)}</strong></div>
+      <div class="job-card__meta">Started <strong>${escapeHtml(formatTimestamp(latest.start_time))}</strong> &middot; took <strong>${escapeHtml(formatDuration(latest.duration_seconds))}</strong></div>
       ${renderPulseStrip(j.runs)}
       <div class="job-card__stats">
-        <div><span class="job-card__stat-label">Transferred</span><br><span class="job-card__stat-value">${formatBytes(latest.size_transferred_bytes)}</span></div>
-        <div><span class="job-card__stat-label">Deleted</span><br><span class="job-card__stat-value">${latest.files_deleted} files</span></div>
+        <div><span class="job-card__stat-label">Transferred</span><br><span class="job-card__stat-value">${escapeHtml(formatBytes(latest.size_transferred_bytes))}</span></div>
+        <div><span class="job-card__stat-label">Deleted</span><br><span class="job-card__stat-value">${escapeHtml(latest.files_deleted)} files</span></div>
       </div>` : `<div class="job-card__meta">No log files found yet for this job.</div>`}
     </div>`;
   }).join("")}</div>`;
 }
 
-function renderRunsTable(job) {
-  const rows = job.runs.map((r, i) => {
+function renderRunsTable(runs, key) {
+  const rows = runs.map(r => {
     const hasErrors = r.errors && r.errors.length > 0;
+    const errKey = `${key}::${r.filename}`;
+    const expanded = state.expandedErrors.has(errKey);
     return `
-    <tr class="${hasErrors ? "has-errors" : ""}" data-run-index="${i}">
-      <td class="status-cell"><span class="status-dot status-dot--${r.status}"></span>${STATUS_LABEL[r.status] || r.status}</td>
-      <td>${formatTimestamp(r.start_time)}</td>
-      <td>${formatDuration(r.duration_seconds)}</td>
-      <td>${formatBytes(r.size_transferred_bytes)}</td>
-      <td>${r.files_transferred}</td>
-      <td>${r.files_deleted}</td>
+    <tr class="${hasErrors ? "has-errors" : ""}" ${hasErrors ? `data-err-key="${escapeHtml(errKey)}"` : ""}>
+      <td class="status-cell"><span class="status-dot status-dot--${escapeHtml(r.status)}"></span>${escapeHtml(STATUS_LABEL[r.status] || r.status)}</td>
+      <td>${escapeHtml(formatTimestamp(r.start_time))}</td>
+      <td>${escapeHtml(formatDuration(r.duration_seconds))}</td>
+      <td>${escapeHtml(formatBytes(r.size_transferred_bytes))}</td>
+      <td>${escapeHtml(r.files_transferred)}</td>
+      <td>${escapeHtml(r.files_deleted)}</td>
     </tr>
-    ${hasErrors ? `<tr class="errors-row" data-run-errors="${i}" style="display:none"><td colspan="6">${r.errors.map(e => escapeHtml(e)).join("\n")}</td></tr>` : ""}`;
+    ${hasErrors ? `<tr class="errors-row" data-errors-for="${escapeHtml(errKey)}" style="display:${expanded ? "table-row" : "none"}"><td colspan="6">${r.errors.map(e => escapeHtml(e)).join("\n")}</td></tr>` : ""}`;
   }).join("");
 
   return `<table class="runs">
@@ -135,23 +156,36 @@ function renderRunsTable(job) {
   </table>`;
 }
 
-function escapeHtml(s) {
-  return s.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-}
-
-function renderJobDetail(job) {
+function renderJobDetail(job, multiServer) {
+  const key = jobKey(job);
+  // The dashboard payload only carries the most recent runs; the per-job
+  // endpoint returns the full history and replaces it once loaded.
+  const runs = state.fullRuns[key] || job.runs;
   const latest = job.latest;
   return `
     <div class="job-detail__head">
-      <h2>${job.category}</h2>
-      ${latest ? `<span class="badge badge--${latest.status}">${STATUS_LABEL[latest.status] || latest.status}</span>` : ""}
+      <h2>${escapeHtml(jobLabel(job, multiServer))}</h2>
+      ${latest ? `<span class="badge badge--${escapeHtml(latest.status)}">${escapeHtml(STATUS_LABEL[latest.status] || latest.status)}</span>` : ""}
     </div>
-    ${job.runs.length ? `<div class="job-detail__pulse">
+    ${runs.length ? `<div class="job-detail__pulse">
       <div class="job-card__stat-label">Recent runs</div>
-      ${renderPulseStrip(job.runs, 28)}
+      ${renderPulseStrip(runs, 28)}
     </div>` : ""}
-    ${renderRunsTable(job)}
+    ${renderRunsTable(runs, key)}
   `;
+}
+
+async function loadFullRuns(job) {
+  const key = jobKey(job);
+  try {
+    const res = await fetch(`/api/jobs/${encodeURIComponent(job.server)}/${encodeURIComponent(job.category)}/runs`);
+    if (!res.ok) throw new Error(res.status);
+    const payload = await res.json();
+    state.fullRuns[key] = payload.runs;
+    if (state.tab === key) render();
+  } catch (e) {
+    // Keep showing the dashboard payload's runs.
+  }
 }
 
 function render() {
@@ -164,24 +198,34 @@ function render() {
     return;
   }
 
+  const multiServer = hasMultipleServers(data);
   let body;
   if (state.tab === "overview") {
     body = renderOverview(data) + renderTabs(data) + renderJobGrid(data);
   } else {
     const job = data.jobs.find(j => jobKey(j) === state.tab);
     if (!job) { state.tab = "overview"; return render(); }
-    body = renderOverview(data) + renderTabs(data) + renderJobDetail(job);
+    body = renderOverview(data) + renderTabs(data) + renderJobDetail(job, multiServer);
   }
   app.innerHTML = body;
 
   app.querySelectorAll("[data-tab]").forEach(el => {
-    el.addEventListener("click", () => { state.tab = el.dataset.tab; render(); });
+    el.addEventListener("click", () => {
+      state.tab = el.dataset.tab;
+      const job = data.jobs.find(j => jobKey(j) === state.tab);
+      if (job) loadFullRuns(job);
+      render();
+    });
   });
   app.querySelectorAll("tr.has-errors").forEach(el => {
     el.addEventListener("click", () => {
-      const idx = el.dataset.runIndex;
-      const errRow = app.querySelector(`[data-run-errors="${idx}"]`);
-      if (errRow) errRow.style.display = errRow.style.display === "none" ? "table-row" : "none";
+      const key = el.dataset.errKey;
+      const errRow = app.querySelector(`[data-errors-for="${CSS.escape(key)}"]`);
+      if (!errRow) return;
+      const open = errRow.style.display === "none";
+      errRow.style.display = open ? "table-row" : "none";
+      if (open) state.expandedErrors.add(key);
+      else state.expandedErrors.delete(key);
     });
   });
 }
@@ -195,9 +239,12 @@ async function fetchData() {
     liveDot.className = "live-dot";
     lastUpdatedEl.textContent = "updated " + new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
     render();
+    // Keep the open job's full history fresh too.
+    const job = state.data.jobs.find(j => jobKey(j) === state.tab);
+    if (job) loadFullRuns(job);
   } catch (e) {
     liveDot.className = "live-dot stale";
-    lastUpdatedEl.textContent = "connection lost \u2014 retrying\u2026";
+    lastUpdatedEl.textContent = "connection lost — retrying…";
   }
 }
 

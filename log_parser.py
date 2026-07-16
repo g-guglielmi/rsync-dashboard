@@ -29,11 +29,22 @@ STAT_FIELDS = {
     "bytes_sent": (r"Total bytes sent:\s*" + SIZE_RE, True),
 }
 
-SIZE_MULT = {"": 1, "K": 1024, "M": 1024**2, "G": 1024**3, "T": 1024**4}
+# The scripts run rsync with a single -h (human-readable level 2), which
+# prints size suffixes in units of 1000, not 1024.
+SIZE_MULT = {"": 1, "K": 1000, "M": 1000**2, "G": 1000**3, "T": 1000**4}
 
 # Only treat a log with no completion marker as "still running" if it was
 # touched recently; otherwise assume the job crashed / the container restarted.
 RUNNING_GRACE_SECONDS = 6 * 3600
+
+# rsync exit codes that mean "completed, but with caveats" rather than a real
+# failure. 24 = "some files vanished before they could be transferred", which
+# is routine when syncing a live filesystem.
+WARNING_EXIT_CODES = {24}
+
+# Completed runs never change on disk, so their parse result can be reused as
+# long as (mtime, size) is unchanged. Keyed by absolute path.
+_parse_cache = {}
 
 
 def parse_bash_date(s):
@@ -80,17 +91,18 @@ def extract_errors(content, limit=10):
     return lines[-limit:]
 
 
-def determine_status(content):
+def determine_status(content, single_m, batch_m):
     has_warning_text = bool(re.search(r"rsync warning", content, re.I))
 
-    m = END_SINGLE_RE.search(content)
-    if m:
-        code = int(m.group(2))
+    if single_m:
+        code = int(single_m.group(2))
         if code == 0:
             return "warning" if has_warning_text else "success"
+        if code in WARNING_EXIT_CODES:
+            return "warning"
         return "failed"
 
-    if END_BATCH_RE.search(content):
+    if batch_m:
         ok = len(re.findall(r"✅ Finished", content))
         bad = len(re.findall(r"❌ Error syncing", content))
         if bad == 0:
@@ -104,7 +116,36 @@ def determine_status(content):
 
 def parse_log_file(path):
     try:
-        with open(path, "r", errors="replace") as f:
+        st = os.stat(path)
+    except OSError:
+        return None
+
+    cache_key = (st.st_mtime, st.st_size)
+    cached = _parse_cache.get(path)
+    if cached is not None and cached[0] == cache_key:
+        return cached[1]
+
+    result = _parse_log_content(path)
+    # Only cache final results: a marker-less log must be re-evaluated each
+    # time so "running" can age into "interrupted" even if the file is idle.
+    if result and result["status"] in ("success", "warning", "failed"):
+        _parse_cache[path] = (cache_key, result)
+    return result
+
+
+def prune_parse_cache():
+    """Drops cache entries for log files that were deleted (e.g. by the
+    scripts' own 7-day cleanup)."""
+    for path in list(_parse_cache):
+        if not os.path.exists(path):
+            _parse_cache.pop(path, None)
+
+
+def _parse_log_content(path):
+    try:
+        # Logs are written by bash scripts in UTF-8; don't depend on the
+        # platform default encoding (the ✅/❌ markers break otherwise).
+        with open(path, "r", encoding="utf-8", errors="replace") as f:
             content = f.read()
     except OSError:
         return None
@@ -123,16 +164,15 @@ def parse_log_file(path):
             except ValueError:
                 start_time = None
 
-    end_time = None
-    m = END_SINGLE_RE.search(content)
-    if m:
-        end_time = parse_bash_date(m.group(1))
-    else:
-        m = END_BATCH_RE.search(content)
-        if m:
-            end_time = parse_bash_date(m.group(1))
+    single_m = END_SINGLE_RE.search(content)
+    batch_m = None if single_m else END_BATCH_RE.search(content)
 
-    status = determine_status(content)
+    end_time = None
+    end_m = single_m or batch_m
+    if end_m:
+        end_time = parse_bash_date(end_m.group(1))
+
+    status = determine_status(content, single_m, batch_m)
     if status is None:
         mtime = os.path.getmtime(path)
         age = datetime.now().timestamp() - mtime
@@ -203,6 +243,7 @@ def get_job_runs(job_path, limit=20):
 
 
 def get_dashboard_data(logs_root, history_limit=15):
+    prune_parse_cache()
     jobs = discover_jobs(logs_root)
     job_results = []
     for job in jobs:

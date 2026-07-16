@@ -21,7 +21,7 @@ files, so there's very little that can go wrong.
 - **`icon.svg` / `icon.png`** — the container icon (also used as the browser
   tab favicon).
 - **`unraid-template.xml`** — lets you add the container from the unRAID GUI
-  instead of typing every field by hand, and instead of docker-compose.
+  instead of typing every field by hand.
 - **`.github/workflows/build.yml`** — builds the image and publishes it to
   GitHub's container registry (ghcr.io) automatically, so unRAID only ever
   needs to *pull*, never build.
@@ -29,8 +29,10 @@ files, so there's very little that can go wrong.
 ### How a run is classified
 
 - **Success** — script's own exit code was `0` and no `rsync warning` appeared.
-- **Warning** — either exit code `0` with an rsync warning, or (for your
-  multi-folder scripts) some sub-folders succeeded and others failed.
+- **Warning** — exit code `0` with an rsync warning, exit code `24` ("some
+  files vanished before they could be transferred" — routine when syncing a
+  live filesystem), or (for your multi-folder scripts) some sub-folders
+  succeeded and others failed.
 - **Failed** — exit code was non-zero, or every sub-folder failed.
 - **Running** — no completion line yet, and the log was touched in the last 6
   hours.
@@ -128,10 +130,30 @@ Then in `unraid-template.xml`, change the `<Repository>` value back to
 the GUI. Updating then means `git pull && docker build ...` again, followed
 by Force Update in the GUI.
 
-## docker-compose (optional — skip if you don't use it)
+## Running outside unRAID (plain `docker run`)
 
-`docker-compose.yml` is still included in case you ever install the *Compose
-Manager* plugin later. It's not needed for either method above.
+On any other Docker host (e.g. managed with Dockhand), the equivalent of the
+unRAID template is:
+
+```bash
+docker run -d \
+  --name rsync-dashboard \
+  -p 8686:8686 \
+  -v /path/to/rsync_logs:/data/logs:ro \
+  -e TZ=Europe/Rome \
+  --restart unless-stopped \
+  ghcr.io/g-guglielmi/rsync-dashboard:latest
+```
+
+## Running the tests
+
+The log parser has a pytest suite. To run it locally:
+
+```bash
+python -m venv .venv && . .venv/bin/activate   # .venv\Scripts\activate on Windows
+pip install -r requirements-dev.txt
+pytest
+```
 
 ## Troubleshooting
 
