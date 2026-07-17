@@ -343,14 +343,6 @@ main {
   margin: 0;
   font-size: 18px;
 }
-.job-detail__pulse {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 14px 16px;
-  margin-bottom: 20px;
-}
-.job-detail__pulse .pulse-strip { height: 28px; margin-top: 10px; }
 .pulse-block { cursor: default; position: relative; }
 
 table.runs {

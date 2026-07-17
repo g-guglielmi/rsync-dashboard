@@ -232,10 +232,6 @@ function renderJobDetail(job, multiServer) {
       <h2>${escapeHtml(jobLabel(job, multiServer))}</h2>
       ${latest ? `<span class="badge badge--${escapeHtml(latest.status)}">${escapeHtml(STATUS_LABEL[latest.status] || latest.status)}</span>` : ""}
     </div>
-    ${runs.length ? `<div class="job-detail__pulse">
-      <div class="job-card__stat-label">Recent runs</div>
-      ${renderPulseStrip(runs, 28)}
-    </div>` : ""}
     ${renderTransferChart(job.daily_transfers, "Data transferred per day — last 7 days")}
     ${renderRunsTable(runs, key)}
   `;
