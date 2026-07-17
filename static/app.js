@@ -267,9 +267,9 @@ function render() {
   const multiServer = hasMultipleServers(data);
   let body;
   if (state.tab === "overview") {
-    body = renderOverview(data)
+    body = renderOverview(data) + renderTabs(data)
       + renderTransferChart(data.daily_transfers, "Data transferred per day, all jobs — last 7 days")
-      + renderTabs(data) + renderJobGrid(data);
+      + renderJobGrid(data);
   } else {
     const job = data.jobs.find(j => jobKey(j) === state.tab);
     if (!job) { state.tab = "overview"; return render(); }
@@ -315,6 +315,14 @@ async function fetchData() {
     lastUpdatedEl.textContent = "connection lost — retrying…";
   }
 }
+
+// Clicking the title in the topbar returns to the overview tab.
+document.querySelector(".topbar__title").addEventListener("click", () => {
+  if (state.tab !== "overview") {
+    state.tab = "overview";
+    render();
+  }
+});
 
 fetchData();
 setInterval(fetchData, REFRESH_MS);
