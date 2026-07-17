@@ -22,6 +22,8 @@ files, so there's very little that can go wrong.
   tab favicon).
 - **`unraid-template.xml`** — lets you add the container from the unRAID GUI
   instead of typing every field by hand.
+- **`examples/`** — anonymized copies of the backup scripts that produce the
+  logs, so you can see the exact format the parser expects (see below).
 - **`.github/workflows/build.yml`** — builds the image and publishes it to
   GitHub's container registry (ghcr.io) automatically, so unRAID only ever
   needs to *pull*, never build.
@@ -39,8 +41,30 @@ files, so there's very little that can go wrong.
 - **Interrupted** — no completion line, and it's older than 6 hours (the
   script likely crashed or the server restarted mid-run).
 
-This is all inferred from the same text your scripts already produce — nothing
-needs to change in `BackupSchedule`, `DatiPersonali`, or `Media`.
+This is all inferred from the same text your backup scripts already produce —
+you don't have to change how they run, only make sure their logs land under
+`LOGS_ROOT/<server>/<category>/`.
+
+## Example backup scripts
+
+The [`examples/`](examples/) folder has two **anonymized** scripts showing the
+log format the dashboard parses — copy them as a starting point and replace the
+placeholders (`192.0.2.x` IPs, `BackupServer`, etc.) with your own:
+
+- **[`examples/rsync-job.sh`](examples/rsync-job.sh)** — a single-target job.
+  It writes `--- Starting rsync at ... ---` / `--- rsync finished ... with
+  exit code N ---` markers plus rsync's `--stats` block, which is everything
+  the parser needs for status, timing, and transfer sizes.
+- **[`examples/backup-schedule.sh`](examples/backup-schedule.sh)** — a master
+  wrapper that runs several jobs in sequence. Note its offline failsafe: if the
+  remote is unreachable it writes a short "failed" log for each job, so a
+  skipped night shows as **Failed** instead of the dashboard silently keeping
+  the previous run's status.
+
+> **Publishing your own?** This is a public repo. The scripts in `examples/`
+> are scrubbed on purpose — real host IPs, SSH usernames, key paths, and
+> machine/folder names are replaced with placeholders. If you contribute your
+> own samples or logs, do the same before pushing.
 
 ## Deploying on unRAID — recommended: GitHub Actions + GHCR
 
@@ -154,6 +178,16 @@ python -m venv .venv && . .venv/bin/activate   # .venv\Scripts\activate on Windo
 pip install -r requirements-dev.txt
 pytest
 ```
+
+## A note on privacy
+
+This is a public repo. The backup scripts themselves are **not** included here
+on purpose — they contain host IPs, SSH usernames, key paths, and machine
+names. If you ever add real log samples or scripts (e.g. an `examples/` folder
+to illustrate the log format), scrub those details first: replace real
+hostnames, usernames, folder names, and IPs with generic placeholders
+(`vm-one`, `backup-user`, `folder-a`, etc.), as the test fixtures in
+`tests/` already do.
 
 ## Troubleshooting
 
