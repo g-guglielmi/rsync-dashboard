@@ -253,6 +253,7 @@ def get_dashboard_data(logs_root, history_limit=15):
             "category": job["category"],
             "runs": runs,
             "latest": runs[0] if runs else None,
+            "daily_transfers": daily_transfers([{"runs": runs}]),
         })
 
     overview = {

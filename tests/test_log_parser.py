@@ -283,6 +283,9 @@ def test_dashboard_includes_daily_transfers(tmp_path):
     data = get_dashboard_data(str(tmp_path))
     assert len(data["daily_transfers"]) == 7
     assert all("date" in e and "bytes" in e for e in data["daily_transfers"])
+    # each job also carries its own per-job daily series
+    for job in data["jobs"]:
+        assert len(job["daily_transfers"]) == 7
 
 
 def test_prune_parse_cache(tmp_path):

@@ -99,8 +99,7 @@ function chartDayLabel(isoDate, index, total) {
   return d.toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
-function renderTransferChart(data) {
-  const days = data.daily_transfers;
+function renderTransferChart(days, label) {
   if (!days || !days.length) return "";
 
   const W = 720, H = 170;
@@ -135,9 +134,9 @@ function renderTransferChart(data) {
   ).join("");
 
   return `<div class="chart-panel">
-    <div class="job-card__stat-label">Data transferred per day — last 7 days</div>
+    <div class="job-card__stat-label">${escapeHtml(label)}</div>
     <svg viewBox="0 0 ${W} ${H}" class="transfer-chart" role="img"
-         aria-label="Total data transferred per day over the last 7 days">
+         aria-label="${escapeHtml(label)}">
       ${gridlines}
       <path d="${areaPath}" class="chart-area"></path>
       <path d="${linePath}" class="chart-line"></path>
@@ -237,6 +236,7 @@ function renderJobDetail(job, multiServer) {
       <div class="job-card__stat-label">Recent runs</div>
       ${renderPulseStrip(runs, 28)}
     </div>` : ""}
+    ${renderTransferChart(job.daily_transfers, "Data transferred per day — last 7 days")}
     ${renderRunsTable(runs, key)}
   `;
 }
@@ -267,7 +267,9 @@ function render() {
   const multiServer = hasMultipleServers(data);
   let body;
   if (state.tab === "overview") {
-    body = renderOverview(data) + renderTransferChart(data) + renderTabs(data) + renderJobGrid(data);
+    body = renderOverview(data)
+      + renderTransferChart(data.daily_transfers, "Data transferred per day, all jobs — last 7 days")
+      + renderTabs(data) + renderJobGrid(data);
   } else {
     const job = data.jobs.find(j => jobKey(j) === state.tab);
     if (!job) { state.tab = "overview"; return render(); }
