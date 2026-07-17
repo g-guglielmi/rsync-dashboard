@@ -8,6 +8,21 @@ duration, data transferred, and files deleted — plus a short history per job.
 It does **not** touch your scripts and can't trigger backups. It only reads log
 files, so there's very little that can go wrong.
 
+## Screenshots
+
+Overview — every job's latest status, transfer size, and a run-history strip at
+a glance:
+
+![Dashboard overview](docs/screenshot-overview.png)
+
+Per-job detail — the full run history with durations, sizes, and (for failed
+runs) expandable error lines:
+
+![Job detail](docs/screenshot-detail.png)
+
+*(Sample data — the screenshots above are generated from anonymized example
+logs, not a real backup target.)*
+
 ## How it works, in plain terms
 
 - **`log_parser.py`** — opens each `.log` file your scripts already create and
