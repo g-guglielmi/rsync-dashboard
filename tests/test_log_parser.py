@@ -47,20 +47,46 @@ rsync warning: some files vanished before they could be transferred (code 24)
 """
 
 BATCH_MIXED = """--- Starting Batch Rsync at Sat Jul 11 04:00:00 CEST 2026 ---
-✅ Finished Dati-Common
-❌ Error syncing Dati-Gian (Code: 23)
+✅ Finished folder-a
+❌ Error syncing folder-b (Code: 23)
 --- All transfers finished at Sat Jul 11 04:30:00 CEST 2026 ---
 """
 
 BATCH_ALL_FAILED = """--- Starting Batch Rsync at Sat Jul 11 04:00:00 CEST 2026 ---
-❌ Error syncing Dati-Common (Code: 23)
-❌ Error syncing Dati-Gian (Code: 23)
+❌ Error syncing folder-a (Code: 23)
+❌ Error syncing folder-b (Code: 23)
 --- All transfers finished at Sat Jul 11 04:30:00 CEST 2026 ---
 """
 
 NO_MARKER = """--- Starting rsync at Sat Jul 11 03:00:01 CEST 2026 ---
 sending incremental file list
 """
+
+# Format written by docker-backup.sh (multi-VM docker pull backup) after it
+# was aligned with the dashboard's batch markers.
+DOCKER_VM_BATCH = """--- Starting Batch Rsync at Fri Jul 10 04:15:02 CEST 2026 ---
+🚀 Triggering backup on vm-one...
+   -> Pulling results from /home/backup-user/docker_backup_20260710_041503...
+receiving incremental file list
+docker_app.tar.gz
+Number of files: 11 (reg: 10, dir: 1)
+Number of regular files transferred: 10
+Total transferred file size: 94.33M bytes
+Total bytes sent: 229
+   ✅ Finished vm-one
+🚀 Triggering backup on vm-two...
+receiving incremental file list
+Number of files: 9 (reg: 8, dir: 1)
+Number of regular files transferred: 8
+Total transferred file size: 73.31M bytes
+Total bytes sent: 210
+   ✅ Finished vm-two
+--- All transfers finished at Fri Jul 10 04:16:04 CEST 2026 ---
+"""
+
+DOCKER_VM_BATCH_ONE_FAILED = DOCKER_VM_BATCH.replace(
+    "   ✅ Finished vm-two",
+    "   ❌ Error syncing vm-two: rsync exited with code 12")
 
 
 @pytest.fixture(autouse=True)
@@ -140,6 +166,23 @@ def test_batch_mixed_is_warning(tmp_path):
 def test_batch_all_failed(tmp_path):
     path = write_log(tmp_path, "rsync_batch_20260711_040000.log", BATCH_ALL_FAILED)
     assert parse_log_file(path)["status"] == "failed"
+
+
+def test_docker_vm_batch_success(tmp_path):
+    path = write_log(tmp_path, "backup_20260710_041502.log", DOCKER_VM_BATCH)
+    run = parse_log_file(path)
+    assert run["status"] == "success"
+    assert run["start_time"] == "2026-07-10T04:15:02"
+    assert run["end_time"] == "2026-07-10T04:16:04"
+    assert run["files_transferred"] == 18
+    assert run["size_transferred_bytes"] == 94_330_000 + 73_310_000
+
+
+def test_docker_vm_batch_partial_failure_is_warning(tmp_path):
+    path = write_log(tmp_path, "backup_20260710_041502.log", DOCKER_VM_BATCH_ONE_FAILED)
+    run = parse_log_file(path)
+    assert run["status"] == "warning"
+    assert any("vm-two" in e for e in run["errors"])
 
 
 def test_no_marker_recent_is_running(tmp_path):
