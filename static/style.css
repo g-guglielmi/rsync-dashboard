@@ -170,6 +170,52 @@ main {
 .stat-card--fail .stat-card__value { color: var(--fail); }
 .stat-card--accent .stat-card__value { color: var(--accent); }
 
+/* ---------------- Daily transfer chart ---------------- */
+.chart-panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px 8px;
+  margin-bottom: 24px;
+}
+.transfer-chart {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin-top: 6px;
+}
+.chart-grid {
+  stroke: var(--border-soft);
+  stroke-width: 1;
+}
+.chart-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  fill: var(--text-dim);
+}
+.chart-label--y { text-anchor: end; dominant-baseline: middle; }
+.chart-label--x { text-anchor: middle; }
+.chart-area {
+  fill: var(--accent);
+  opacity: 0.10;
+}
+.chart-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.chart-dot {
+  fill: var(--accent);
+  stroke: var(--panel);
+  stroke-width: 2;
+}
+.chart-hit {
+  fill: transparent;
+  cursor: default;
+}
+
 /* ---------------- Tabs ---------------- */
 .tabs {
   display: flex;

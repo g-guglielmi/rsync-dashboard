@@ -5,6 +5,7 @@ import pytest
 
 import log_parser
 from log_parser import (
+    daily_transfers,
     discover_jobs,
     get_dashboard_data,
     get_job_runs,
@@ -252,6 +253,36 @@ def test_dashboard_overview(tmp_path):
     assert o["failed"] == 1
     assert o["no_data"] == 1
     assert o["total_transferred_bytes"] == 1234567
+
+
+def test_daily_transfers():
+    from datetime import date
+
+    def run(day, size):
+        return {"start_time": f"{day}T05:30:01", "size_transferred_bytes": size}
+
+    jobs = [
+        {"runs": [run("2026-07-16", 100), run("2026-07-15", 50), run("2026-07-01", 999)]},
+        {"runs": [run("2026-07-16", 25)]},
+        {"runs": []},
+    ]
+    result = daily_transfers(jobs, days=7, today=date(2026, 7, 16))
+
+    assert len(result) == 7
+    assert result[0]["date"] == "2026-07-10"   # oldest first, fixed 7-day window
+    assert result[-1]["date"] == "2026-07-16"
+    assert result[-1]["bytes"] == 125          # summed across jobs
+    assert result[-2]["bytes"] == 50
+    assert sum(r["bytes"] for r in result) == 175  # July 1 outside window, excluded
+
+
+def test_dashboard_includes_daily_transfers(tmp_path):
+    d = tmp_path / "tower" / "media"
+    d.mkdir(parents=True)
+    write_log(d, "rsync_media_20260711_030001.log", SINGLE_SUCCESS)
+    data = get_dashboard_data(str(tmp_path))
+    assert len(data["daily_transfers"]) == 7
+    assert all("date" in e and "bytes" in e for e in data["daily_transfers"])
 
 
 def test_prune_parse_cache(tmp_path):

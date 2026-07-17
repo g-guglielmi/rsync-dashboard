@@ -81,6 +81,72 @@ function renderOverview(data) {
     </div>`).join("")}</div>`;
 }
 
+// Rounds a byte count up to a "nice" chart ceiling (1024-based, matching
+// the Windows-style formatBytes display).
+function niceBytesCeil(bytes) {
+  if (!bytes || bytes <= 0) return 1;
+  let div = 1;
+  while (bytes / div >= 1024) div *= 1024;
+  const steps = [1, 1.5, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256, 384, 512, 768, 1024];
+  const v = bytes / div;
+  const s = steps.find(x => x >= v) || 1024;
+  return s * div;
+}
+
+function chartDayLabel(isoDate, index, total) {
+  if (index === total - 1) return "Today";
+  const d = new Date(isoDate + "T00:00:00");
+  return d.toLocaleDateString([], { month: "short", day: "numeric" });
+}
+
+function renderTransferChart(data) {
+  const days = data.daily_transfers;
+  if (!days || !days.length) return "";
+
+  const W = 720, H = 170;
+  const PAD = { top: 14, right: 18, bottom: 26, left: 58 };
+  const plotW = W - PAD.left - PAD.right;
+  const plotH = H - PAD.top - PAD.bottom;
+  const maxY = niceBytesCeil(Math.max(...days.map(d => d.bytes)));
+
+  const x = i => PAD.left + (days.length === 1 ? plotW / 2 : (plotW * i) / (days.length - 1));
+  const y = b => PAD.top + plotH - (plotH * b) / maxY;
+
+  const pts = days.map((d, i) => `${x(i).toFixed(1)},${y(d.bytes).toFixed(1)}`);
+  const linePath = "M" + pts.join(" L");
+  const areaPath = `${linePath} L${x(days.length - 1).toFixed(1)},${y(0)} L${x(0).toFixed(1)},${y(0)} Z`;
+
+  const gridlines = [0, 0.5, 1].map(f => {
+    const gy = y(maxY * f).toFixed(1);
+    return `
+      <line x1="${PAD.left}" y1="${gy}" x2="${W - PAD.right}" y2="${gy}" class="chart-grid"></line>
+      <text x="${PAD.left - 8}" y="${gy}" class="chart-label chart-label--y">${escapeHtml(formatBytes(maxY * f))}</text>`;
+  }).join("");
+
+  const xLabels = days.map((d, i) =>
+    `<text x="${x(i).toFixed(1)}" y="${H - 8}" class="chart-label chart-label--x">${escapeHtml(chartDayLabel(d.date, i, days.length))}</text>`
+  ).join("");
+
+  const dots = days.map((d, i) => `
+    <circle cx="${x(i).toFixed(1)}" cy="${y(d.bytes).toFixed(1)}" r="4" class="chart-dot"></circle>
+    <circle cx="${x(i).toFixed(1)}" cy="${y(d.bytes).toFixed(1)}" r="12" class="chart-hit">
+      <title>${escapeHtml(chartDayLabel(d.date, i, days.length))} — ${escapeHtml(formatBytes(d.bytes))}</title>
+    </circle>`
+  ).join("");
+
+  return `<div class="chart-panel">
+    <div class="job-card__stat-label">Data transferred per day — last 7 days</div>
+    <svg viewBox="0 0 ${W} ${H}" class="transfer-chart" role="img"
+         aria-label="Total data transferred per day over the last 7 days">
+      ${gridlines}
+      <path d="${areaPath}" class="chart-area"></path>
+      <path d="${linePath}" class="chart-line"></path>
+      ${dots}
+      ${xLabels}
+    </svg>
+  </div>`;
+}
+
 function renderPulseStrip(runs, size = 20) {
   const slots = runs.slice(0, 12).reverse();
   return `<div class="pulse-strip" style="height:${size}px">
@@ -201,7 +267,7 @@ function render() {
   const multiServer = hasMultipleServers(data);
   let body;
   if (state.tab === "overview") {
-    body = renderOverview(data) + renderTabs(data) + renderJobGrid(data);
+    body = renderOverview(data) + renderTransferChart(data) + renderTabs(data) + renderJobGrid(data);
   } else {
     const job = data.jobs.find(j => jobKey(j) === state.tab);
     if (!job) { state.tab = "overview"; return render(); }

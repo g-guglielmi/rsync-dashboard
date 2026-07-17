@@ -9,7 +9,7 @@ nothing here requires modifying them.
 """
 import os
 import re
-from datetime import datetime
+from datetime import date, datetime, timedelta
 
 LOG_FILENAME_RE = re.compile(r"_(\d{8})_(\d{6})\.log$")
 START_LINE_RE = re.compile(r"--- Starting(?: Batch)? Rsync at (.+?) ---", re.I)
@@ -268,4 +268,22 @@ def get_dashboard_data(logs_root, history_limit=15):
         overview["total_transferred_bytes"] += latest["size_transferred_bytes"]
         overview["total_deleted_files"] += latest["files_deleted"]
 
-    return {"jobs": job_results, "overview": overview}
+    return {
+        "jobs": job_results,
+        "overview": overview,
+        "daily_transfers": daily_transfers(job_results),
+    }
+
+
+def daily_transfers(job_results, days=7, today=None):
+    """Sums transferred bytes across all jobs per calendar day (midnight to
+    midnight, server-local) for the last `days` days, oldest first."""
+    today = today or date.today()
+    window = [(today - timedelta(days=i)).isoformat() for i in range(days - 1, -1, -1)]
+    totals = dict.fromkeys(window, 0)
+    for j in job_results:
+        for run in j["runs"]:
+            day = (run["start_time"] or "")[:10]
+            if day in totals:
+                totals[day] += run["size_transferred_bytes"]
+    return [{"date": d, "bytes": totals[d]} for d in window]
