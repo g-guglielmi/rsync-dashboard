@@ -1,3 +1,5 @@
+<p align="center"><img src="icon.png" width="96" height="96" alt="rsync-dashboard icon"></p>
+
 # Rsync Watch
 
 A small read-only dashboard for your unRAID rsync backup jobs. It reads the log
