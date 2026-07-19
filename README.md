@@ -268,3 +268,7 @@ Environment variables (all optional beyond what the template already sets):
 From here: edit code, commit, push, Force Update in the GUI. Tag a version
 with `git tag vX.Y.Z && git push origin vX.Y.Z` whenever you want it marked
 as a release with its own changelog entry and pinnable image tag.
+
+## License
+
+This project is released under the [MIT License](LICENSE).
