@@ -57,6 +57,31 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
 
+      # Build locally first and boot the image: catches "module not copied
+      # into the image" style failures that unit tests can't see.
+      - name: Build (local, for smoke test)
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          load: true
+          tags: rsync-dashboard:smoke
+
+      - name: Smoke test the image
+        run: |
+          docker run -d --name smoke -p 8686:8686 rsync-dashboard:smoke
+          for i in $(seq 1 20); do
+            if curl -fs http://127.0.0.1:8686/healthz >/dev/null; then ok=1; break; fi
+            sleep 1
+          done
+          if [ -z "$ok" ]; then
+            echo "::error::Container did not become healthy"; docker logs smoke; exit 1
+          fi
+          curl -fs http://127.0.0.1:8686/api/dashboard >/dev/null
+          curl -fs http://127.0.0.1:8686/api/settings >/dev/null
+          docker logs smoke | grep -qi "error\|traceback" && { echo "::error::Errors in container log"; docker logs smoke; exit 1; }
+          echo "Image boots and serves the API."
+          docker rm -f smoke
+
       - name: Build and push
         uses: docker/build-push-action@v7
         with:

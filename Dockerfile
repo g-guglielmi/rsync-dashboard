@@ -10,7 +10,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Then copy the app itself
-COPY app.py log_parser.py ./
+COPY app.py log_parser.py alerts.py settings.py ./
 COPY templates/ templates/
 COPY static/ static/
 
