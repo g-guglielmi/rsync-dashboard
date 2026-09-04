@@ -53,15 +53,28 @@ function formatElapsedSince(iso) {
 // Problems first: a failed job should never hide below a row of green cards.
 const SEVERITY = { failed: 0, warning: 1, interrupted: 2, running: 3, success: 4, no_data: 5 };
 function jobStatus(job) { return job.latest ? job.latest.status : "no_data"; }
+function jobRank(job) { return job.overdue ? 0 : (SEVERITY[jobStatus(job)] ?? 9); }
 function sortedByAttention(jobs) {
-  return [...jobs].sort((a, b) =>
-    (SEVERITY[jobStatus(a)] ?? 9) - (SEVERITY[jobStatus(b)] ?? 9) || a.category.localeCompare(b.category));
+  return [...jobs].sort((a, b) => jobRank(a) - jobRank(b) || a.category.localeCompare(b.category));
+}
+
+function formatHours(h) { return h < 48 ? `${Math.round(h)}h` : `${(h / 24).toFixed(1)} days`; }
+
+// "Overdue" = no run within the expected interval (OVERDUE_HOURS / JOB_INTERVALS).
+function overdueBadge(job) {
+  if (!job.overdue) return "";
+  const every = formatHours(job.expected_every_hours);
+  const tip = job.overdue_age_hours == null
+    ? `No runs found — expected every ${every}`
+    : `No run for ${formatHours(job.overdue_age_hours)} — expected every ${every}`;
+  return `<span class="badge badge--overdue" title="${escapeHtml(tip)}">Overdue</span>`;
 }
 
 // Browser-tab title doubles as a status beacon for a pinned tab.
 function updateTitle(data) {
   const o = data.overview;
   const parts = [];
+  if (o.overdue) parts.push(`${o.overdue} overdue`);
   if (o.failed) parts.push(`${o.failed} failed`);
   if (o.warning) parts.push(`${o.warning} warning`);
   if (o.interrupted) parts.push(`${o.interrupted} interrupted`);
@@ -102,6 +115,7 @@ function renderOverview(data) {
     { label: "Success", value: o.success, cls: "success" },
     { label: "Warning", value: o.warning, cls: "warning" },
     { label: "Failed", value: o.failed, cls: "fail" },
+    { label: "Overdue", value: o.overdue || 0, cls: "fail" },
     { label: "Running", value: o.running, cls: "accent" },
     { label: "Transferred · latest runs", value: formatBytes(o.total_transferred_bytes), cls: "accent" },
     { label: "Deleted · latest runs", value: o.total_deleted_files, cls: "" },
@@ -192,7 +206,7 @@ function renderTabs(data) {
     data.jobs.map(j => ({
       key: jobKey(j),
       label: jobLabel(j, multiServer),
-      dotCls: j.latest ? j.latest.status : "no_data",
+      dotCls: j.overdue ? "overdue" : jobStatus(j),
     }))
   );
   return `<div class="tabs">${tabs.map(t => `
@@ -203,7 +217,7 @@ function renderTabs(data) {
 }
 
 function dotColorVar(status) {
-  return { success: "success", warning: "warning", failed: "fail", running: "accent",
+  return { success: "success", warning: "warning", failed: "fail", overdue: "fail", running: "accent",
            interrupted: "interrupted", no_data: "neutral" }[status] || "neutral";
 }
 
@@ -219,6 +233,7 @@ function renderJobGrid(data) {
       <div class="job-card__head">
         <div class="job-card__name">${escapeHtml(jobLabel(j, multiServer))}</div>
         <div class="job-card__badges">
+          ${overdueBadge(j)}
           ${errorPill(latest)}
           <span class="badge badge--${escapeHtml(status)}">${escapeHtml(STATUS_LABEL[status] || status)}</span>
         </div>
@@ -268,7 +283,10 @@ function renderJobDetail(job, multiServer) {
   return `
     <div class="job-detail__head">
       <h2>${escapeHtml(jobLabel(job, multiServer))}</h2>
-      ${latest ? `<span class="badge badge--${escapeHtml(latest.status)}">${escapeHtml(STATUS_LABEL[latest.status] || latest.status)}</span>` : ""}
+      <div class="job-card__badges">
+        ${overdueBadge(job)}
+        ${latest ? `<span class="badge badge--${escapeHtml(latest.status)}">${escapeHtml(STATUS_LABEL[latest.status] || latest.status)}</span>` : ""}
+      </div>
     </div>
     ${renderTransferChart(job.daily_transfers, "Data transferred per day — last 7 days")}
     ${renderRunsTable(runs, key)}

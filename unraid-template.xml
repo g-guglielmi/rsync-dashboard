@@ -31,4 +31,28 @@
   <Config Name="History Limit" Target="HISTORY_LIMIT" Default="15" Mode="" Description="How many past runs to keep per job" Type="Variable" Display="advanced" Required="false" Mask="false">15</Config>
 
   <Config Name="Cache Seconds" Target="CACHE_SECONDS" Default="20" Mode="" Description="How long results are cached before logs are re-read" Type="Variable" Display="advanced" Required="false" Mask="false">20</Config>
+
+  <!-- Alerts (all optional). Leave every channel blank to disable notifications; the Overdue badge in the UI works regardless. -->
+  <Config Name="State Folder" Target="/data/state" Default="/mnt/user/appdata/rsync-dashboard" Mode="rw" Description="Small folder where the dashboard remembers which alerts it already sent, so a container update doesn't re-send them." Type="Path" Display="always" Required="false" Mask="false">/mnt/user/appdata/rsync-dashboard</Config>
+
+  <Config Name="Overdue After (hours)" Target="OVERDUE_HOURS" Default="26" Mode="" Description="A job is Overdue when its last run is older than this. 26 = daily jobs with a 2h grace period." Type="Variable" Display="always" Required="false" Mask="false">26</Config>
+
+  <Config Name="Per-Job Intervals" Target="JOB_INTERVALS" Default="" Mode="" Description="Override the interval for specific jobs: server/category=hours, separated by ; -- e.g. unRAID-4Bay/Docker=168; unRAID-4Bay/Scratch=0  (0 = never mark that job overdue)" Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
+
+  <Config Name="Alert Events" Target="ALERT_EVENTS" Default="overdue,interrupted" Mode="" Description="Which conditions send a notification: any of overdue, interrupted, failed, warning (comma-separated). Default skips failed/warning because your scripts already notify those." Type="Variable" Display="advanced" Required="false" Mask="false">overdue,interrupted</Config>
+
+  <Config Name="Dashboard URL" Target="DASHBOARD_URL" Default="" Mode="" Description="Optional link appended to every alert, e.g. http://192.168.1.10:8686" Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
+
+  <Config Name="Telegram Bot Token" Target="TELEGRAM_BOT_TOKEN" Default="" Mode="" Description="From @BotFather. Leave blank to disable Telegram alerts." Type="Variable" Display="advanced" Required="false" Mask="true"></Config>
+  <Config Name="Telegram Chat ID" Target="TELEGRAM_CHAT_ID" Default="" Mode="" Description="Chat or group ID that receives alerts" Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
+  <Config Name="Telegram Topic ID" Target="TELEGRAM_THREAD_ID" Default="" Mode="" Description="Optional: message_thread_id of a forum topic inside the group" Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
+
+  <Config Name="Discord Webhook URL" Target="DISCORD_WEBHOOK_URL" Default="" Mode="" Description="Channel webhook URL. Leave blank to disable Discord alerts." Type="Variable" Display="advanced" Required="false" Mask="true"></Config>
+
+  <Config Name="SMTP Host" Target="SMTP_HOST" Default="" Mode="" Description="Mail server hostname. Leave blank to disable e-mail alerts." Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
+  <Config Name="SMTP Port" Target="SMTP_PORT" Default="587" Mode="" Description="587 = STARTTLS (default), 465 = SSL" Type="Variable" Display="advanced" Required="false" Mask="false">587</Config>
+  <Config Name="SMTP User" Target="SMTP_USER" Default="" Mode="" Description="Login username (also used as the From address if SMTP From is blank)" Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
+  <Config Name="SMTP Password" Target="SMTP_PASSWORD" Default="" Mode="" Description="Login password / app password" Type="Variable" Display="advanced" Required="false" Mask="true"></Config>
+  <Config Name="SMTP From" Target="SMTP_FROM" Default="" Mode="" Description="Sender address (optional)" Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
+  <Config Name="SMTP To" Target="SMTP_TO" Default="" Mode="" Description="Recipient address(es), comma-separated" Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
 </Container>

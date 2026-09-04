@@ -206,6 +206,51 @@ hostnames, usernames, folder names, and IPs with generic placeholders
 (`vm-one`, `backup-user`, `folder-a`, etc.), as the test fixtures in
 `tests/` already do.
 
+## Alerts (optional)
+
+The dashboard can notify you — via **Telegram**, **Discord** and/or **e-mail**,
+each independently optional — when something needs attention. Its unique
+value is the **Overdue** check: a backup script that never ran (server was
+off, scheduler hiccup, remote unreachable) can't report anything, so only
+something watching the logs can notice the run is *missing*.
+
+What it alerts on (`ALERT_EVENTS`, default `overdue,interrupted`):
+
+- **overdue** — no run within the expected interval. `OVERDUE_HOURS` (default
+  `26`: daily jobs plus a 2-hour grace) applies to every job; override single
+  jobs with `JOB_INTERVALS`, e.g. `unRAID-4Bay/Docker=168; unRAID-4Bay/Scratch=0`
+  (weekly job; `0` = never mark that one overdue).
+- **interrupted** — a run that never finished (script crashed / server rebooted).
+- **failed** / **warning** — off by default because the backup scripts already
+  send their own notifications for those; add them if yours don't.
+
+Each condition is alerted **once**, then a **recovery** message follows when it
+clears (`ALERT_RECOVERY=false` to disable). The check runs every
+`ALERT_CHECK_MINUTES` (default `5`). The Overdue badge and counter in the UI
+work even with no channel configured.
+
+Channels — set the variables for the ones you use (all in the unRAID template
+under *Show more settings*):
+
+| Channel | Variables |
+|---|---|
+| Telegram | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, optional `TELEGRAM_THREAD_ID` (forum topic) |
+| Discord | `DISCORD_WEBHOOK_URL` |
+| E-mail | `SMTP_HOST`, `SMTP_TO`; optional `SMTP_PORT` (587 STARTTLS / 465 SSL), `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`, `SMTP_TLS` (`starttls`/`ssl`/`none`) |
+
+Optional extras: `DASHBOARD_URL` (link appended to every message) and
+`STATE_DIR` (default `/data/state`; mount it so already-sent alerts are
+remembered across container updates — the template maps it to
+`/mnt/user/appdata/rsync-dashboard`).
+
+Handy endpoints once configured:
+
+- `http://<ip>:8686/api/alerts/test` — sends a test message to every channel
+  and reports per-channel success/failure.
+- `http://<ip>:8686/api/alerts` — shows the effective config (no secrets) and
+  which conditions are currently active.
+- `http://<ip>:8686/api/alerts/check` — runs an evaluation right now.
+
 ## Troubleshooting
 
 - **"Can't see /data/logs"** on the dashboard — the volume mount is missing or
@@ -239,6 +284,14 @@ Environment variables (all optional beyond what the template already sets):
 | `LOGS_ROOT` | `/data/logs` | Where *inside the container* logs are expected. Only change this if you also change the container-side path in the volume mapping. |
 | `HISTORY_LIMIT` | `15` | How many past runs to keep per job. |
 | `CACHE_SECONDS` | `20` | How long the server caches parsed results before re-reading log files. |
+| `OVERDUE_HOURS` | `26` | Hours since the last run after which a job is marked **Overdue**. |
+| `JOB_INTERVALS` | *(empty)* | Per-job overrides, `server/category=hours; …` (`0` disables). |
+| `ALERT_EVENTS` | `overdue,interrupted` | Which conditions notify; may add `failed`, `warning`. |
+| `ALERT_CHECK_MINUTES` | `5` | How often the alert checker runs. |
+| `ALERT_RECOVERY` | `true` | Send a message when an alerted condition clears. |
+| `STATE_DIR` | `/data/state` | Where sent-alert state is persisted. |
+| `DASHBOARD_URL` | *(empty)* | Link appended to alert messages. |
+| `TELEGRAM_*`, `DISCORD_WEBHOOK_URL`, `SMTP_*` | *(empty)* | Notification channels — see **Alerts**. |
 
 ---
 

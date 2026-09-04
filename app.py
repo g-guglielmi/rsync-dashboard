@@ -1,10 +1,14 @@
+import logging
 import os
 import time
 import threading
 
 from flask import Flask, jsonify, render_template, abort
 
+import alerts
 from log_parser import get_dashboard_data, discover_jobs, get_job_runs
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
 app = Flask(__name__)
 
@@ -22,6 +26,9 @@ CACHE_SECONDS = _env_int("CACHE_SECONDS", 20)
 
 _cache = {"data": None, "ts": 0}
 _lock = threading.Lock()
+
+ALERT_CFG = alerts.Config.from_env()
+ALERTER = alerts.Alerter(ALERT_CFG)
 
 
 def get_cached_data():
@@ -50,8 +57,8 @@ def healthz():
 
 @app.route("/api/dashboard")
 def api_dashboard():
-    data = get_cached_data()
-    # Copy so the shared cached dict is never mutated per-request.
+    # annotate() returns a copy, so the shared cached dict is never mutated.
+    data = alerts.annotate(get_cached_data(), ALERT_CFG)
     return jsonify({**data, "logs_root_found": os.path.isdir(LOGS_ROOT)})
 
 
@@ -63,6 +70,41 @@ def api_job_runs(server, category):
         abort(404)
     runs = get_job_runs(match["path"], limit=100)
     return jsonify({"server": server, "category": category, "runs": runs})
+
+
+@app.route("/api/alerts")
+def api_alerts():
+    """Alerting configuration summary (never includes secrets) and state."""
+    return jsonify({
+        **ALERT_CFG.summary(),
+        "enabled": ALERTER.enabled,
+        "active": ALERTER.state.get("active", {}),
+        "last_check": ALERTER.state.get("last_check"),
+    })
+
+
+@app.route("/api/alerts/test", methods=["GET", "POST"])
+def api_alerts_test():
+    """Sends a test message to every configured channel (GET allowed so it
+    can be triggered from a browser address bar)."""
+    if not ALERTER.enabled:
+        return jsonify({"error": "No alert channel configured"}), 400
+    return jsonify({"results": ALERTER.send_test()})
+
+
+@app.route("/api/alerts/check", methods=["GET", "POST"])
+def api_alerts_check():
+    """Runs an alert evaluation right now instead of waiting for the timer."""
+    sent = ALERTER.run_once(get_cached_data())
+    return jsonify({"sent": [subject for subject, _ in sent], "active": ALERTER.state.get("active", {})})
+
+
+if ALERTER.enabled:
+    # Requires a single gunicorn worker (see Dockerfile) so this runs once.
+    alerts.start_background(ALERTER, get_cached_data)
+else:
+    logging.getLogger("rsync-watch").info(
+        "Alerting disabled (no TELEGRAM_*, DISCORD_WEBHOOK_URL or SMTP_* configured)")
 
 
 if __name__ == "__main__":

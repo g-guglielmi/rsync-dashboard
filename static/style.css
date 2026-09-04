@@ -144,7 +144,7 @@ main {
 /* ---------------- Overview strip ---------------- */
 .overview {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
   gap: 12px;
   margin-bottom: 24px;
 }
@@ -289,6 +289,8 @@ main {
 .badge--running { color: var(--accent); background: rgba(79, 168, 216, 0.12); border-color: var(--accent-dim); }
 .badge--interrupted { color: var(--interrupted); background: rgba(179, 131, 214, 0.12); border-color: var(--interrupted-dim); }
 .badge--no_data { color: var(--text-dim); background: rgba(86, 98, 109, 0.12); border-color: var(--border); }
+/* Overdue = the job didn't run when expected; dashed to tell it apart from a run that failed */
+.badge--overdue { color: var(--fail); background: rgba(242, 85, 74, 0.08); border: 1px dashed var(--fail); }
 
 .job-card__badges { display: flex; align-items: center; gap: 6px; }
 
