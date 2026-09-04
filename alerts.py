@@ -330,6 +330,14 @@ class Alerter:
     def enabled(self):
         return bool(self.senders)
 
+    def reconfigure(self, cfg):
+        """Swap in a new config at runtime (settings saved from the GUI);
+        alert state is kept."""
+        self.cfg = cfg
+        self.senders = self._default_senders()
+        log.info("Alert config reloaded: channels=%s events=%s overdue=%gh",
+                 ",".join(cfg.channels) or "none", ",".join(sorted(cfg.events)), cfg.overdue_hours)
+
     # -- state -------------------------------------------------------------
 
     def _load_state(self):
@@ -418,20 +426,53 @@ class Alerter:
         return sent
 
 
+TEST_TEXT = "✅ Test alert from Rsync Watch. If you can read this, notifications work."
+
+
+def send_test_for(cfg, channel):
+    """Sends a test message through ONE channel of `cfg`. Returns 'ok' or an
+    error string. Lets the GUI test unsaved settings."""
+    try:
+        text = TEST_TEXT + (f"\n{cfg.dashboard_url}" if cfg.dashboard_url else "")
+        if channel == "telegram":
+            if not cfg.telegram_enabled:
+                return "Bot token and chat ID are both required"
+            send_telegram(cfg, text)
+        elif channel == "discord":
+            if not cfg.discord_enabled:
+                return "Webhook URL is required"
+            send_discord(cfg, text)
+        elif channel in ("smtp", "email"):
+            if not cfg.smtp_enabled:
+                return "SMTP host and at least one recipient are required"
+            send_email(cfg, "Rsync Watch — test alert", text)
+        else:
+            return f"Unknown channel '{channel}'"
+        return "ok"
+    except Exception as e:
+        return f"{type(e).__name__}: {e}"
+
+
 def start_background(alerter, load_data, initial_delay=30):
-    """Runs alerter.run_once() every cfg.check_minutes in a daemon thread."""
+    """Runs alerter.run_once() every cfg.check_minutes in a daemon thread.
+    Always started; ticks are skipped while no channel is configured, so
+    channels added later from the GUI take effect without a restart."""
     def loop():
         time.sleep(initial_delay)
         while True:
             try:
-                alerter.run_once(load_data())
+                if alerter.enabled:
+                    alerter.run_once(load_data())
             except Exception:
                 log.exception("Alert check failed")
             time.sleep(alerter.cfg.check_minutes * 60)
 
     t = threading.Thread(target=loop, name="alerts", daemon=True)
     t.start()
-    log.info("Alerting enabled via %s; checking every %g min; events: %s",
-             ", ".join(alerter.cfg.channels), alerter.cfg.check_minutes,
-             ", ".join(sorted(alerter.cfg.events)))
+    if alerter.enabled:
+        log.info("Alerting enabled via %s; checking every %g min; events: %s",
+                 ", ".join(alerter.cfg.channels), alerter.cfg.check_minutes,
+                 ", ".join(sorted(alerter.cfg.events)))
+    else:
+        log.info("Alerting idle: no channel configured yet (set one up in Settings)")
     return t

@@ -225,31 +225,43 @@ What it alerts on (`ALERT_EVENTS`, default `overdue,interrupted`):
   send their own notifications for those; add them if yours don't.
 
 Each condition is alerted **once**, then a **recovery** message follows when it
-clears (`ALERT_RECOVERY=false` to disable). The check runs every
-`ALERT_CHECK_MINUTES` (default `5`). The Overdue badge and counter in the UI
-work even with no channel configured.
+clears. The check runs every 5 minutes by default. The Overdue badge and
+counter in the UI work even with no channel configured.
 
-Channels — set the variables for the ones you use (all in the unRAID template
-under *Show more settings*):
+### Setting it up — the gear icon
 
-| Channel | Variables |
-|---|---|
-| Telegram | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, optional `TELEGRAM_THREAD_ID` (forum topic) |
-| Discord | `DISCORD_WEBHOOK_URL` |
-| E-mail | `SMTP_HOST`, `SMTP_TO`; optional `SMTP_PORT` (587 STARTTLS / 465 SSL), `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`, `SMTP_TLS` (`starttls`/`ssl`/`none`) |
+Click **⚙ (top right)** in the dashboard. The Settings panel lets you set the
+overdue threshold, choose which events notify, give each job its own interval
+(a table of your jobs — e.g. `168` for a weekly job, `0` to never flag one),
+and configure the channels:
 
-Optional extras: `DASHBOARD_URL` (link appended to every message) and
-`STATE_DIR` (default `/data/state`; mount it so already-sent alerts are
-remembered across container updates — the template maps it to
-`/mnt/user/appdata/rsync-dashboard`).
+- **Telegram** — bot token (from @BotFather), chat ID, optional topic ID
+- **Discord** — channel webhook URL
+- **E-mail** — SMTP host/port/encryption, login, from, recipients
 
-Handy endpoints once configured:
+Every channel has a **Send test** button that works *before* you save, and
+reports the real error if delivery fails. Settings are saved to the **State
+Folder** (`/mnt/user/appdata/rsync-dashboard` in the template — keep it mapped,
+or they vanish on the next image update) and apply immediately, no restart.
 
-- `http://<ip>:8686/api/alerts/test` — sends a test message to every channel
-  and reports per-channel success/failure.
-- `http://<ip>:8686/api/alerts` — shows the effective config (no secrets) and
-  which conditions are currently active.
-- `http://<ip>:8686/api/alerts/check` — runs an evaluation right now.
+Secrets are **write-only**: the browser is only ever told whether a token is
+set, never its value.
+
+> **Set a settings password.** The dashboard has no login, so anyone who can
+> reach port 8686 could otherwise redirect your alerts or spam your channels
+> with tests. Set the `SETTINGS_PASSWORD` variable in the template; the panel
+> then asks for it (viewing the dashboard stays open). Leave it empty only on a
+> network you fully trust.
+
+### Alternative: environment variables
+
+Everything in the panel can also be set as environment variables (handy for
+plain `docker run`); the panel's saved values take precedence over them. See
+the **Configuration reference** below. Handy endpoints (they honour the
+settings password via an `X-Settings-Password` header):
+
+- `/api/alerts/test` — test every configured channel; `/api/alerts` — effective
+  config (no secrets) and active conditions; `/api/alerts/check` — evaluate now.
 
 ## Troubleshooting
 
@@ -289,9 +301,12 @@ Environment variables (all optional beyond what the template already sets):
 | `ALERT_EVENTS` | `overdue,interrupted` | Which conditions notify; may add `failed`, `warning`. |
 | `ALERT_CHECK_MINUTES` | `5` | How often the alert checker runs. |
 | `ALERT_RECOVERY` | `true` | Send a message when an alerted condition clears. |
-| `STATE_DIR` | `/data/state` | Where sent-alert state is persisted. |
+| `STATE_DIR` | `/data/state` | Where alert settings and sent-alert state are persisted. |
+| `SETTINGS_PASSWORD` | *(empty)* | If set, required to change settings or send tests from the UI/API. |
 | `DASHBOARD_URL` | *(empty)* | Link appended to alert messages. |
-| `TELEGRAM_*`, `DISCORD_WEBHOOK_URL`, `SMTP_*` | *(empty)* | Notification channels — see **Alerts**. |
+| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `TELEGRAM_THREAD_ID` | *(empty)* | Telegram channel defaults (the Settings panel overrides them). |
+| `DISCORD_WEBHOOK_URL` | *(empty)* | Discord channel default. |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`, `SMTP_TO`, `SMTP_TLS` | *(empty / 587)* | E-mail channel defaults. |
 
 ---
 

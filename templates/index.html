@@ -20,8 +20,11 @@
   <div class="topbar__status">
     <span class="live-dot" id="live-dot"></span>
     <span id="last-updated">connecting&hellip;</span>
+    <button class="icon-btn" id="settings-btn" title="Alert settings" aria-label="Alert settings">&#9881;</button>
   </div>
 </header>
+
+<div id="settings-modal" class="modal" hidden></div>
 
 <main id="app">
   <div class="loading" id="loading">Reading logs&hellip;</div>
@@ -39,5 +42,6 @@
 </template>
 
 <script src="{{ url_for('static', filename='app.js') }}"></script>
+<script src="{{ url_for('static', filename='settings.js') }}"></script>
 </body>
 </html>
