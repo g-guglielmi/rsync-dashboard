@@ -23,7 +23,9 @@ def data(*jobs):
 
 
 def cfg(**kw):
-    kw.setdefault("state_file", "/nonexistent/dir/alerts.json")
+    # Tests that instantiate an Alerter must pass an explicit tmp state_file;
+    # this default only matters for pure evaluation helpers.
+    kw.setdefault("state_file", "unused/alerts.json")
     return Config(**kw)
 
 
@@ -176,7 +178,11 @@ def test_one_broken_channel_does_not_block_others(tmp_path):
     assert results["discord"].startswith("RuntimeError")
 
 
-def test_unwritable_state_file_is_tolerated():
+def test_unwritable_state_file_is_tolerated(tmp_path):
+    # A path *underneath a regular file* can't be created on any OS.
+    blocker = tmp_path / "not-a-dir"
+    blocker.write_text("x")
     cap = Capture()
-    a = Alerter(cfg(), senders=cap.senders())  # /nonexistent/... path
+    a = Alerter(cfg(state_file=str(blocker / "alerts.json")), senders=cap.senders())
     assert len(a.run_once(data(job("s", "B", run("2026-09-02T05:30:00"))), NOW)) == 1
+    assert not (blocker / "alerts.json").exists()
