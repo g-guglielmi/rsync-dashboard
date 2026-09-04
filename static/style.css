@@ -290,6 +290,24 @@ main {
 .badge--interrupted { color: var(--interrupted); background: rgba(179, 131, 214, 0.12); border-color: var(--interrupted-dim); }
 .badge--no_data { color: var(--text-dim); background: rgba(86, 98, 109, 0.12); border-color: var(--border); }
 
+.job-card__badges { display: flex; align-items: center; gap: 6px; }
+
+/* "N errors" hint on cards and run rows — also signals the row is expandable */
+.error-pill {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 100px;
+  border: 1px solid var(--fail-dim);
+  color: var(--fail);
+  background: rgba(242, 85, 74, 0.08);
+  white-space: nowrap;
+  margin-left: 8px;
+}
+.job-card__badges .error-pill { margin-left: 0; }
+.error-pill--warning { color: var(--warning); border-color: var(--warning-dim); background: rgba(240, 180, 41, 0.08); }
+.error-pill--interrupted { color: var(--interrupted); border-color: var(--interrupted-dim); background: rgba(179, 131, 214, 0.08); }
+
 .job-card__meta {
   font-family: var(--font-mono);
   font-size: 12px;
@@ -394,6 +412,8 @@ table.runs tr.has-errors:hover { background: var(--panel-alt); }
 @media (max-width: 640px) {
   .topbar { padding: 14px 16px; }
   main { padding: 16px; }
+  /* SVG text scales with the viewBox; bump it so axis labels stay legible on phones */
+  .chart-label { font-size: 15px; }
   table.runs { font-size: 12px; }
   table.runs th:nth-child(4), table.runs td:nth-child(4) { display: none; }
 }

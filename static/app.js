@@ -42,6 +42,38 @@ function formatDuration(seconds) {
   return `${m}m ${s}s`;
 }
 
+function plural(n, word) { return `${n} ${word}${n === 1 ? "" : "s"}`; }
+
+// Elapsed wall-clock time since an ISO start timestamp (for running jobs).
+function formatElapsedSince(iso) {
+  if (!iso) return "—";
+  return formatDuration(Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000)));
+}
+
+// Problems first: a failed job should never hide below a row of green cards.
+const SEVERITY = { failed: 0, warning: 1, interrupted: 2, running: 3, success: 4, no_data: 5 };
+function jobStatus(job) { return job.latest ? job.latest.status : "no_data"; }
+function sortedByAttention(jobs) {
+  return [...jobs].sort((a, b) =>
+    (SEVERITY[jobStatus(a)] ?? 9) - (SEVERITY[jobStatus(b)] ?? 9) || a.category.localeCompare(b.category));
+}
+
+// Browser-tab title doubles as a status beacon for a pinned tab.
+function updateTitle(data) {
+  const o = data.overview;
+  const parts = [];
+  if (o.failed) parts.push(`${o.failed} failed`);
+  if (o.warning) parts.push(`${o.warning} warning`);
+  if (o.interrupted) parts.push(`${o.interrupted} interrupted`);
+  document.title = parts.length ? `(${parts.join(", ")}) Rsync Watch` : "Rsync Watch";
+}
+
+function errorPill(run) {
+  const n = run && run.errors ? run.errors.length : 0;
+  if (!n) return "";
+  return `<span class="error-pill error-pill--${escapeHtml(run.status)}" title="Click the run to show the error lines">${plural(n, "error")}</span>`;
+}
+
 function formatTimestamp(iso) {
   if (!iso) return "—";
   const d = new Date(iso);
@@ -71,8 +103,8 @@ function renderOverview(data) {
     { label: "Warning", value: o.warning, cls: "warning" },
     { label: "Failed", value: o.failed, cls: "fail" },
     { label: "Running", value: o.running, cls: "accent" },
-    { label: "Transferred", value: formatBytes(o.total_transferred_bytes), cls: "accent" },
-    { label: "Deleted files", value: o.total_deleted_files, cls: "" },
+    { label: "Transferred · latest runs", value: formatBytes(o.total_transferred_bytes), cls: "accent" },
+    { label: "Deleted · latest runs", value: o.total_deleted_files, cls: "" },
   ];
   return `<div class="overview">${cards.map(c => `
     <div class="stat-card ${c.cls ? "stat-card--" + c.cls : ""}">
@@ -177,20 +209,26 @@ function dotColorVar(status) {
 
 function renderJobGrid(data) {
   const multiServer = hasMultipleServers(data);
-  return `<div class="job-grid">${data.jobs.map(j => {
+  return `<div class="job-grid">${sortedByAttention(data.jobs).map(j => {
     const latest = j.latest;
-    const status = latest ? latest.status : "no_data";
+    const status = jobStatus(j);
+    const timing = latest && status === "running"
+      ? `running for <strong>${escapeHtml(formatElapsedSince(latest.start_time))}</strong>`
+      : latest ? `took <strong>${escapeHtml(formatDuration(latest.duration_seconds))}</strong>` : "";
     return `<div class="job-card" data-tab="${escapeHtml(jobKey(j))}">
       <div class="job-card__head">
         <div class="job-card__name">${escapeHtml(jobLabel(j, multiServer))}</div>
-        <span class="badge badge--${escapeHtml(status)}">${escapeHtml(STATUS_LABEL[status] || status)}</span>
+        <div class="job-card__badges">
+          ${errorPill(latest)}
+          <span class="badge badge--${escapeHtml(status)}">${escapeHtml(STATUS_LABEL[status] || status)}</span>
+        </div>
       </div>
       ${latest ? `
-      <div class="job-card__meta">Started <strong>${escapeHtml(formatTimestamp(latest.start_time))}</strong> &middot; took <strong>${escapeHtml(formatDuration(latest.duration_seconds))}</strong></div>
+      <div class="job-card__meta">Started <strong>${escapeHtml(formatTimestamp(latest.start_time))}</strong> &middot; ${timing}</div>
       ${renderPulseStrip(j.runs)}
       <div class="job-card__stats">
         <div><span class="job-card__stat-label">Transferred</span><br><span class="job-card__stat-value">${escapeHtml(formatBytes(latest.size_transferred_bytes))}</span></div>
-        <div><span class="job-card__stat-label">Deleted</span><br><span class="job-card__stat-value">${escapeHtml(latest.files_deleted)} files</span></div>
+        <div><span class="job-card__stat-label">Deleted</span><br><span class="job-card__stat-value">${escapeHtml(plural(latest.files_deleted, "file"))}</span></div>
       </div>` : `<div class="job-card__meta">No log files found yet for this job.</div>`}
     </div>`;
   }).join("")}</div>`;
@@ -203,9 +241,9 @@ function renderRunsTable(runs, key) {
     const expanded = state.expandedErrors.has(errKey);
     return `
     <tr class="${hasErrors ? "has-errors" : ""}" ${hasErrors ? `data-err-key="${escapeHtml(errKey)}"` : ""}>
-      <td class="status-cell"><span class="status-dot status-dot--${escapeHtml(r.status)}"></span>${escapeHtml(STATUS_LABEL[r.status] || r.status)}</td>
+      <td class="status-cell"><span class="status-dot status-dot--${escapeHtml(r.status)}"></span>${escapeHtml(STATUS_LABEL[r.status] || r.status)}${errorPill(r)}</td>
       <td>${escapeHtml(formatTimestamp(r.start_time))}</td>
-      <td>${escapeHtml(formatDuration(r.duration_seconds))}</td>
+      <td>${escapeHtml(r.status === "running" ? formatElapsedSince(r.start_time) + " so far" : formatDuration(r.duration_seconds))}</td>
       <td>${escapeHtml(formatBytes(r.size_transferred_bytes))}</td>
       <td>${escapeHtml(r.files_transferred)}</td>
       <td>${escapeHtml(r.files_deleted)}</td>
@@ -302,6 +340,7 @@ async function fetchData() {
     loading.style.display = "none";
     liveDot.className = "live-dot";
     lastUpdatedEl.textContent = "updated " + new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    updateTitle(state.data);
     render();
     // Keep the open job's full history fresh too.
     const job = state.data.jobs.find(j => jobKey(j) === state.tab);
@@ -309,6 +348,7 @@ async function fetchData() {
   } catch (e) {
     liveDot.className = "live-dot stale";
     lastUpdatedEl.textContent = "connection lost — retrying…";
+    document.title = "(offline) Rsync Watch";
   }
 }
 
