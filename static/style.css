@@ -145,6 +145,7 @@ a { color: var(--accent); }
   padding: 40px 16px;
   overflow-y: auto;
 }
+.modal[hidden] { display: none; }   /* author display:flex would otherwise beat the hidden attribute */
 body.modal-open { overflow: hidden; }
 .modal__panel {
   background: var(--bg);
