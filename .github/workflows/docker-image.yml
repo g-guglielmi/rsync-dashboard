@@ -68,7 +68,9 @@ jobs:
 
       - name: Smoke test the image
         run: |
-          docker run -d --name smoke -p 8686:8686 rsync-dashboard:smoke
+          # Simulate unRAID: a root-owned, non-world-writable host folder bound to the state dir.
+          sudo mkdir -p /tmp/rsync-state && sudo chown root:root /tmp/rsync-state && sudo chmod 755 /tmp/rsync-state
+          docker run -d --name smoke -p 8686:8686 -v /tmp/rsync-state:/data/state rsync-dashboard:smoke
           for i in $(seq 1 20); do
             if curl -fs http://127.0.0.1:8686/healthz >/dev/null; then ok=1; break; fi
             sleep 1
@@ -78,8 +80,16 @@ jobs:
           fi
           curl -fs http://127.0.0.1:8686/api/dashboard >/dev/null
           curl -fs http://127.0.0.1:8686/api/settings >/dev/null
-          docker logs smoke | grep -qi "error\|traceback" && { echo "::error::Errors in container log"; docker logs smoke; exit 1; }
-          echo "Image boots and serves the API."
+          # Settings must be writable into the bind-mounted folder (the PUID/PGID chown must have worked)
+          curl -fs -X PUT -H 'Content-Type: application/json' -d '{"overdue_hours": 30}' http://127.0.0.1:8686/api/settings >/dev/null \
+            || { echo "::error::Saving settings into the bind-mounted state dir failed"; docker logs smoke; exit 1; }
+          sudo test -f /tmp/rsync-state/settings.json || { echo "::error::settings.json not written to host folder"; exit 1; }
+          # ...and the app must NOT be running as root
+          # PID 1 is gunicorn (entrypoint exec's setpriv which exec's gunicorn); slim image has no ps
+          uid=$(docker exec smoke sh -c "awk '/^Uid:/{print \$2}' /proc/1/status")
+          echo "gunicorn runs as uid=$uid"; [ "$uid" = "99" ] || { echo "::error::expected uid 99, got '$uid'"; exit 1; }
+          docker logs smoke | grep -qi "traceback" && { echo "::error::Traceback in container log"; docker logs smoke; exit 1; }
+          echo "Image boots, drops privileges, and persists settings into a root-owned bind mount."
           docker rm -f smoke
 
       - name: Build and push

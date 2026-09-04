@@ -265,6 +265,13 @@ settings password via an `X-Settings-Password` header):
 
 ## Troubleshooting
 
+- **"Could not write settings file: Permission denied"** when saving alert
+  settings — the State Folder on the host isn't writable by the user the
+  container runs as. The container starts as root, fixes ownership of the
+  State Folder to `PUID:PGID` (default `99:100`, unRAID's `nobody:users`),
+  then drops privileges — so with a current image this shouldn't happen. If it
+  still does, check `PUID`/`PGID` match whoever owns your appdata, or run
+  `chown -R 99:100 /mnt/user/appdata/rsync-dashboard` once.
 - **"Can't see /data/logs"** on the dashboard — the volume mount is missing or
   points at the wrong folder. Check the Path field matches where
   `LOG_DIR="/mnt/user/appdata/rsync_logs/..."` actually writes on your system.
@@ -302,6 +309,7 @@ Environment variables (all optional beyond what the template already sets):
 | `ALERT_CHECK_MINUTES` | `5` | How often the alert checker runs. |
 | `ALERT_RECOVERY` | `true` | Send a message when an alerted condition clears. |
 | `STATE_DIR` | `/data/state` | Where alert settings and sent-alert state are persisted. |
+| `PUID` / `PGID` | `99` / `100` | User/group the app runs as after start-up (the State Folder is chowned to them). unRAID's `nobody:users` by default. |
 | `SETTINGS_PASSWORD` | *(empty)* | If set, required to change settings or send tests from the UI/API. |
 | `DASHBOARD_URL` | *(empty)* | Link appended to alert messages. |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `TELEGRAM_THREAD_ID` | *(empty)* | Telegram channel defaults (the Settings panel overrides them). |

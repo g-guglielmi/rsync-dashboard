@@ -35,5 +35,8 @@
   <!-- Alerts are configured from the dashboard itself (gear icon, top right) and saved in the State Folder. -->
   <Config Name="State Folder" Target="/data/state" Default="/mnt/user/appdata/rsync-dashboard" Mode="rw" Description="Where alert settings (from the gear icon in the dashboard) and already-sent-alert memory are stored. Keep this mapped or your settings vanish on the next container update." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/rsync-dashboard</Config>
 
+  <Config Name="PUID" Target="PUID" Default="99" Mode="" Description="User ID the app runs as. 99 = unRAID's nobody, so the State Folder is writable. Change only if your appdata is owned by another user." Type="Variable" Display="advanced" Required="false" Mask="false">99</Config>
+  <Config Name="PGID" Target="PGID" Default="100" Mode="" Description="Group ID the app runs as. 100 = unRAID's users group." Type="Variable" Display="advanced" Required="false" Mask="false">100</Config>
+
   <Config Name="Settings Password" Target="SETTINGS_PASSWORD" Default="" Mode="" Description="Optional but recommended: the dashboard has no login, so anyone on your network can open it. With a password set, changing alert settings or sending test messages requires it (viewing the dashboard stays open)." Type="Variable" Display="always" Required="false" Mask="true"></Config>
 </Container>

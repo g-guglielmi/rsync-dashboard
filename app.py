@@ -161,6 +161,23 @@ def api_settings_put():
     return jsonify(_settings_payload())
 
 
+def _check_state_dir_writable():
+    """Log a clear hint at start-up if saved settings/alert state can't be written."""
+    d = settings_store.state_dir()
+    try:
+        os.makedirs(d, exist_ok=True)
+        probe = os.path.join(d, ".write-test")
+        with open(probe, "w") as f:
+            f.write("ok")
+        os.remove(probe)
+    except OSError as e:
+        logging.getLogger("rsync-watch").warning(
+            "State dir %s is not writable (%s): alert settings and sent-alert memory will not "
+            "persist. Check the State Folder mapping and PUID/PGID.", d, e)
+
+
+_check_state_dir_writable()
+
 # The checker thread is always running; it idles until a channel is configured
 # (env or Settings panel). One gunicorn worker (see Dockerfile) keeps it single.
 alerts.start_background(ALERTER, get_cached_data)
