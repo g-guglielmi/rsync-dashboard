@@ -1,3 +1,7 @@
+# Rsync Watch — read-only dashboard + alerting for unRAID rsync backups.
+# Copyright (C) 2026 g-guglielmi
+# Licensed under the GNU Affero General Public License v3.0; see LICENSE.
+
 """
 Alert settings storage: environment variables provide the defaults, and the
 Settings panel in the UI saves overrides to STATE_DIR/settings.json.

@@ -1,3 +1,7 @@
+# Rsync Watch — read-only dashboard + alerting for unRAID rsync backups.
+# Copyright (C) 2026 g-guglielmi
+# Licensed under the GNU Affero General Public License v3.0; see LICENSE.
+
 """
 Optional alerting for the dashboard.
 

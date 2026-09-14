@@ -349,6 +349,8 @@ as a release with its own changelog entry and pinnable image tag.
 
 ## License
 
+Copyright (C) 2026 g-guglielmi.
+
 This project is released under the [GNU Affero General Public License v3.0](LICENSE).
 
 If you run a modified version of this dashboard and let other people reach it over a network, the AGPL requires you to offer them the modified source.
