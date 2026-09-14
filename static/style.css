@@ -553,3 +553,21 @@ table.runs tr.has-errors:hover { background: var(--panel-alt); }
   table.runs { font-size: 12px; }
   table.runs th:nth-child(4), table.runs td:nth-child(4) { display: none; }
 }
+
+/* -------- app footer: AGPL source link + running version -------- */
+.appfoot {
+  max-width: 1080px;
+  margin: 8px auto 0;
+  padding: 16px 24px 28px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.appfoot a { color: var(--text-muted); text-decoration: none; }
+.appfoot a:hover { color: var(--accent); text-decoration: underline; }
+.appfoot__sep { opacity: 0.6; }
+.appfoot__ver { color: var(--text-dim); }

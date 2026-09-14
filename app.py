@@ -12,6 +12,9 @@ from log_parser import get_dashboard_data, discover_jobs, get_job_runs
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
+# Shown in the footer next to the source link. Bump on each release.
+APP_VERSION = "0.1.3"
+
 app = Flask(__name__)
 
 
@@ -59,7 +62,7 @@ def protected(fn):
 
 @app.route("/")
 def index():
-    return render_template("index.html")
+    return render_template("index.html", version=APP_VERSION)
 
 
 @app.route("/healthz")
