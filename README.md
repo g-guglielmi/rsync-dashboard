@@ -336,6 +336,9 @@ And two optional new variables worth setting: `TRUSTED_HOSTS` (see
 
 ## Troubleshooting
 
+- **Container shows "unhealthy"** — run the same check Docker runs and read
+  the reason: `docker exec rsync-dashboard /app/healthcheck.py`. The last
+  few results are in `docker inspect --format '{{json .State.Health}}' rsync-dashboard`.
 - **"Settings are read-only" / gear icon shows a lock message** — the
   container has no `SETTINGS_PASSWORD`. Set one (12+ random ASCII characters)
   and reopen the panel; see **Security** above.

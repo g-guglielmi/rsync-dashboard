@@ -93,6 +93,8 @@ jobs:
           fi
           B=http://127.0.0.1:8686
           code() { curl -s -o /dev/null -w '%{http_code}' "$@"; }
+          # The HEALTHCHECK script must work inside the image (copied, executable, stdlib only)
+          docker exec smoke /app/healthcheck.py || { echo "::error::healthcheck.py failed inside the container"; docker logs smoke; exit 1; }
           curl -fs $B/api/dashboard >/dev/null
           [ "$(code $B/api/settings)" = 401 ] || { echo "::error::settings without password should be 401"; exit 1; }
           [ "$(code -H "X-Settings-Password: wrong" $B/api/settings)" = 401 ] || { echo "::error::wrong password should be 401"; exit 1; }

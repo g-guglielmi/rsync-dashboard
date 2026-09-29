@@ -11,7 +11,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Then copy the app itself
-COPY app.py log_parser.py alerts.py settings.py ./
+COPY app.py log_parser.py alerts.py settings.py healthcheck.py ./
+RUN chmod +x healthcheck.py
 COPY templates/ templates/
 COPY static/ static/
 
@@ -33,8 +34,9 @@ ENV PUID=99 PGID=100
 
 EXPOSE 8686
 
+# Same script you can run by hand: docker exec rsync-dashboard /app/healthcheck.py
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
-  CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8686/healthz', timeout=4)"]
+  CMD ["python", "/app/healthcheck.py"]
 
 ENTRYPOINT ["/entrypoint.sh"]
 # One worker on purpose: the alert checker runs as a background thread inside
