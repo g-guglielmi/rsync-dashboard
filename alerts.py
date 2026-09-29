@@ -14,7 +14,8 @@ container restarts don't re-send everything.
 Overdue is the important one: a backup script that never ran can't report
 anything, so only the dashboard can notice it's missing.
 
-Configuration is entirely via environment variables; see README "Alerts".
+Configuration comes from environment variables and the Settings panel; see
+README "Alerts".
 """
 import json
 import logging
@@ -268,11 +269,24 @@ def active_conditions(data, cfg, now):
 # Senders
 # --------------------------------------------------------------------------
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Webhook APIs don't redirect. Following one would let a saved URL bounce
+    the request (and its body) to an arbitrary host."""
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+_OPENER = urllib.request.build_opener(_NoRedirect)
+
+
 def _post_json(url, payload, timeout=15):
+    # urllib also speaks http://, ftp:// and file://; none of those is a webhook.
+    if not url.lower().startswith("https://"):
+        raise ValueError("only https:// endpoints are allowed")
     req = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"),
                                  headers={"Content-Type": "application/json",
                                           "User-Agent": "rsync-watch"})
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
+    with _OPENER.open(req, timeout=timeout) as resp:
         if resp.status >= 300:
             raise RuntimeError(f"HTTP {resp.status}")
 
@@ -285,7 +299,9 @@ def send_telegram(cfg, text):
 
 
 def send_discord(cfg, text):
-    _post_json(cfg.discord_webhook, {"content": text[:1900]})
+    # Error lines quote filenames from the backed-up data; a file called
+    # "@everyone.txt" must not ping the whole server.
+    _post_json(cfg.discord_webhook, {"content": text[:1900], "allowed_mentions": {"parse": []}})
 
 
 def send_email(cfg, subject, text):
@@ -306,6 +322,18 @@ def send_email(cfg, subject, text):
         if cfg.smtp_user:
             server.login(cfg.smtp_user, cfg.smtp_password)
         server.send_message(msg)
+
+
+def write_private_json(path, data):
+    """Atomically writes JSON that only the app's user can read (mode 0600):
+    the settings file holds tokens and passwords, and the state folder is
+    often an SMB-shared appdata folder."""
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp = path + ".tmp"
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=1)
+    os.replace(tmp, path)
 
 
 # --------------------------------------------------------------------------
@@ -357,11 +385,7 @@ class Alerter:
 
     def _save_state(self):
         try:
-            os.makedirs(os.path.dirname(self.cfg.state_file), exist_ok=True)
-            tmp = self.cfg.state_file + ".tmp"
-            with open(tmp, "w", encoding="utf-8") as f:
-                json.dump(self.state, f, indent=1)
-            os.replace(tmp, self.cfg.state_file)
+            write_private_json(self.cfg.state_file, self.state)
         except OSError as e:
             log.warning("Alert state not persisted (%s): %s — alerts may repeat after a restart",
                         self.cfg.state_file, e)

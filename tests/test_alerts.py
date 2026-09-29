@@ -1,4 +1,8 @@
+import os
+import stat
 from datetime import datetime
+
+import pytest
 
 import alerts
 from alerts import Alerter, Config, active_conditions, annotate, parse_events, parse_job_intervals
@@ -186,3 +190,31 @@ def test_unwritable_state_file_is_tolerated(tmp_path):
     a = Alerter(cfg(state_file=str(blocker / "alerts.json")), senders=cap.senders())
     assert len(a.run_once(data(job("s", "B", run("2026-09-02T05:30:00"))), NOW)) == 1
     assert not (blocker / "alerts.json").exists()
+
+
+# ---------------- senders: no SSRF, no mention pings, private state ----------------
+
+def test_post_json_refuses_anything_but_https():
+    for url in ("http://discord.com/api/webhooks/1/x", "file:///etc/passwd", "ftp://127.0.0.1/x"):
+        with pytest.raises(ValueError):
+            alerts._post_json(url, {})
+
+
+def test_redirects_are_not_followed():
+    assert alerts._NoRedirect().redirect_request(None, None, 302, "Found", {}, "https://elsewhere") is None
+
+
+def test_discord_payload_disables_mentions(monkeypatch):
+    seen = {}
+    monkeypatch.setattr(alerts, "_post_json", lambda url, payload, timeout=15: seen.update(url=url, payload=payload))
+    alerts.send_discord(cfg(discord_webhook="https://discord.com/api/webhooks/1/abc"), "rsync: @everyone.txt failed")
+    assert seen["payload"]["allowed_mentions"] == {"parse": []}
+    assert seen["payload"]["content"].startswith("rsync:")
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX file modes")
+def test_state_file_is_private(tmp_path):
+    a = Alerter(cfg(state_file=str(tmp_path / "alerts.json")), senders=Capture().senders())
+    a.run_once(data(job("s", "B", run("2026-09-02T05:30:00"))), NOW)
+    mode = stat.S_IMODE(os.stat(tmp_path / "alerts.json").st_mode)
+    assert mode == 0o600, oct(mode)
