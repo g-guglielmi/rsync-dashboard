@@ -14,7 +14,7 @@
   <WebUI>http://[IP]:[PORT:8686]/</WebUI>
   <TemplateURL/>
   <Icon>https://raw.githubusercontent.com/g-guglielmi/rsync-dashboard/main/icon.png</Icon>
-  <ExtraParams/>
+  <ExtraParams>--cap-drop=ALL --cap-add=CHOWN --cap-add=FOWNER --cap-add=SETUID --cap-add=SETGID --security-opt=no-new-privileges</ExtraParams>
   <PostArgs/>
   <CPUset/>
   <DateInstalled/>
@@ -38,5 +38,8 @@
   <Config Name="PUID" Target="PUID" Default="99" Mode="" Description="User ID the app runs as. 99 = unRAID's nobody, so the State Folder is writable. Change only if your appdata is owned by another user." Type="Variable" Display="advanced" Required="false" Mask="false">99</Config>
   <Config Name="PGID" Target="PGID" Default="100" Mode="" Description="Group ID the app runs as. 100 = unRAID's users group." Type="Variable" Display="advanced" Required="false" Mask="false">100</Config>
 
-  <Config Name="Settings Password" Target="SETTINGS_PASSWORD" Default="" Mode="" Description="Optional but recommended: the dashboard has no login, so anyone on your network can open it. With a password set, changing alert settings or sending test messages requires it (viewing the dashboard stays open)." Type="Variable" Display="always" Required="false" Mask="true"></Config>
+  <Config Name="Settings Password" Target="SETTINGS_PASSWORD" Default="" Mode="" Description="Required to change alert settings or send test messages from the dashboard (viewing stays open, no login). Use 12+ random ASCII characters. Without it the settings panel is read-only." Type="Variable" Display="always" Required="true" Mask="true"></Config>
+
+  <Config Name="Trusted Hosts" Target="TRUSTED_HOSTS" Default="" Mode="" Description="Optional, recommended: the IP or hostname(s) you open the dashboard with, comma-separated (e.g. 192.168.1.10,tower.local). Requests with any other Host header are rejected, which blocks DNS-rebinding attacks from web pages. Leave empty to accept any host." Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
+  <Config Name="Frame Ancestors" Target="FRAME_ANCESTORS" Default="" Mode="" Description="Only needed if you embed the dashboard in another dashboard (Organizr, Homepage, ...): the origin allowed to frame it, e.g. https://organizr.home.lan. Default: only the dashboard itself." Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
 </Container>
