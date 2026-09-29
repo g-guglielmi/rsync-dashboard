@@ -181,14 +181,24 @@ docker run -d \
   --name rsync-dashboard \
   -p 8686:8686 \
   -v /path/to/rsync_logs:/data/logs:ro \
+  -v /path/to/appdata/rsync-dashboard:/data/state \
   -e TZ=Europe/Rome \
+  -e SETTINGS_PASSWORD='use-12-plus-random-ascii-chars' \
+  -e TRUSTED_HOSTS=192.168.1.10,dockerhost.local \
+  --cap-drop=ALL --cap-add=CHOWN --cap-add=FOWNER --cap-add=SETUID --cap-add=SETGID \
+  --security-opt=no-new-privileges \
   --restart unless-stopped \
   ghcr.io/g-guglielmi/rsync-dashboard:latest
 ```
 
+The `--cap-drop/--cap-add/--security-opt` line is the same hardening the unRAID
+template applies; the four capabilities left are what the entrypoint needs to
+fix the state folder's ownership and drop to `PUID:PGID`. `TRUSTED_HOSTS` is
+optional but recommended (see **Security** below).
+
 ## Running the tests
 
-The log parser has a pytest suite. To run it locally:
+The parser, alerting, settings and HTTP layer have a pytest suite. To run it locally:
 
 ```bash
 python -m venv .venv && . .venv/bin/activate   # .venv\Scripts\activate on Windows
@@ -247,24 +257,100 @@ or they vanish on the next image update) and apply immediately, no restart.
 Secrets are **write-only**: the browser is only ever told whether a token is
 set, never its value.
 
-> **Set a settings password.** The dashboard has no login, so anyone who can
-> reach port 8686 could otherwise redirect your alerts or spam your channels
-> with tests. Set the `SETTINGS_PASSWORD` variable in the template; the panel
-> then asks for it (viewing the dashboard stays open). Leave it empty only on a
-> network you fully trust.
+> **Settings need a password.** The dashboard has no login, so anyone who can
+> reach port 8686 could otherwise redirect your alerts, spam your channels
+> with tests, or point the SMTP settings at their own server and collect your
+> mail password. `SETTINGS_PASSWORD` (12+ random ASCII characters) is therefore
+> required in the template; the panel asks for it once per browser tab, and
+> viewing the dashboard stays open. Without it the panel is **read-only**
+> (alerts you saved earlier keep working). If you really want the old open
+> behaviour on a network you fully trust, set `ALLOW_UNPROTECTED_SETTINGS=true`.
 
 ### Alternative: environment variables
 
 Everything in the panel can also be set as environment variables (handy for
 plain `docker run`); the panel's saved values take precedence over them. See
-the **Configuration reference** below. Handy endpoints (they honour the
-settings password via an `X-Settings-Password` header):
+the **Configuration reference** below. Handy endpoints (send the settings
+password in an `X-Settings-Password` header; the two with side effects are
+POST-only):
 
-- `/api/alerts/test` — test every configured channel; `/api/alerts` — effective
-  config (no secrets) and active conditions; `/api/alerts/check` — evaluate now.
+- `POST /api/alerts/test` — test every configured channel;
+  `POST /api/alerts/check` — evaluate now;
+  `GET /api/alerts` — effective config (no secrets) and active conditions.
+
+```bash
+curl -X POST -H "X-Settings-Password: $PW" http://192.168.1.10:8686/api/alerts/test
+```
+
+## Security
+
+What the dashboard does and doesn't protect, so you can decide where to run it:
+
+- **Viewing is open.** There is no login. Anyone who can reach the port sees
+  job names, run history and rsync error lines (which quote file paths from
+  the data you back up). Keep it on your LAN or behind an authenticating
+  reverse proxy (SWAG, Nginx Proxy Manager, Authelia…). **Never port-forward
+  8686 to the internet.**
+- **Changing anything needs `SETTINGS_PASSWORD`.** It travels in a header, not
+  a cookie, so other websites can't forge requests with it. Ten wrong
+  passwords from one address lock the settings API for 15 minutes for that
+  address. Without a password the settings are read-only.
+- **`TRUSTED_HOSTS`** (optional, recommended): the IP/hostname(s) you open the
+  dashboard with, e.g. `192.168.1.10,tower.local`. Requests carrying any other
+  `Host` header get a `400`, which stops *DNS-rebinding* attacks, where a web
+  page you visit tricks your browser into talking to LAN services. Loopback
+  is always allowed so the container healthcheck keeps working. A leading dot
+  matches subdomains (`.home.lan`).
+- **Alert channels are validated.** Discord webhooks must be real
+  `https://discord.com/api/webhooks/…` URLs, redirects are never followed,
+  and changing the SMTP host, port or TLS mode requires re-entering the SMTP
+  password, so a stored password can't be sent to a different server.
+- **Secrets on disk** (`settings.json`, `alerts.json` in the State Folder) are
+  written with mode `600`, owned by `PUID`. They are still plaintext: treat
+  the State Folder like any other credentials folder.
+- **The container** runs as `PUID:PGID` with all capabilities dropped except
+  the four the start-up needs, and `no-new-privileges`. The logs folder is
+  mounted read-only.
+- **Embedding** the dashboard in another dashboard (Organizr, Homepage…) is
+  blocked by default; set `FRAME_ANCESTORS` to that app's origin to allow it.
+- Response headers include a Content-Security-Policy, `nosniff`, and
+  `Cache-Control: no-store` on the API.
+
+Found something? Please open a GitHub issue.
+
+## Upgrading from 0.1.x
+
+Settings and alert state are unchanged, so it's just a Force Update. Two
+things can need a one-time action:
+
+1. **No `SETTINGS_PASSWORD` set?** The settings panel becomes read-only until
+   you set one (edit the container, "Settings Password"). Alerts you already
+   configured keep running in the meantime. To keep the old open behaviour
+   instead, set `ALLOW_UNPROTECTED_SETTINGS=true`.
+2. **Scripts calling `/api/alerts/test` or `/api/alerts/check` with GET** must
+   switch to POST (`curl -X POST …`).
+
+And two optional new variables worth setting: `TRUSTED_HOSTS` (see
+**Security**) and, only if you embed the dashboard in another app,
+`FRAME_ANCESTORS`. Rolling back is just pinning the image to `:0.1.4`.
 
 ## Troubleshooting
 
+- **"Settings are read-only" / gear icon shows a lock message** — the
+  container has no `SETTINGS_PASSWORD`. Set one (12+ random ASCII characters)
+  and reopen the panel; see **Security** above.
+- **"Too many wrong passwords"** — ten wrong attempts from your address in 15
+  minutes. Wait, or restart the container. A browser tab remembers the
+  password it was given; if you changed the password on the container, close
+  that tab.
+- **Every page returns "400 Bad Request"** after setting `TRUSTED_HOSTS` —
+  the name/IP in your address bar isn't in the list. Add it (comma-separated,
+  no port), or clear the variable.
+- **Dashboard is blank when embedded in Organizr / Homepage / an iframe** —
+  set `FRAME_ANCESTORS` to that app's origin, e.g. `https://organizr.home.lan`.
+- **"SMTP server settings changed: re-enter the SMTP password"** — you
+  changed the host, port or TLS mode. Type the password again (or clear it),
+  so the stored one is never sent to a server you didn't confirm.
 - **"Could not write settings file: Permission denied"** when saving alert
   settings — the State Folder on the host isn't writable by the user the
   container runs as. The container starts as root, fixes ownership of the
@@ -310,7 +396,11 @@ Environment variables (all optional beyond what the template already sets):
 | `ALERT_RECOVERY` | `true` | Send a message when an alerted condition clears. |
 | `STATE_DIR` | `/data/state` | Where alert settings and sent-alert state are persisted. |
 | `PUID` / `PGID` | `99` / `100` | User/group the app runs as after start-up (the State Folder is chowned to them). unRAID's `nobody:users` by default. |
-| `SETTINGS_PASSWORD` | *(empty)* | If set, required to change settings or send tests from the UI/API. |
+| `SETTINGS_PASSWORD` | *(empty)* | **Required to change settings** or send tests from the UI/API (12+ random ASCII characters). Without it the settings are read-only. |
+| `ALLOW_UNPROTECTED_SETTINGS` | `false` | `true` restores the pre-0.2 behaviour: settings editable by anyone who can reach the port when no password is set. Not recommended. |
+| `TRUSTED_HOSTS` | *(empty = any)* | Comma-separated hostnames/IPs the dashboard may be reached as; other `Host` headers get a `400` (blocks DNS rebinding). Loopback is always allowed. |
+| `FRAME_ANCESTORS` | `'self'` | Origin allowed to embed the dashboard in a frame, e.g. `https://organizr.home.lan`. |
+| `MAX_LOG_MB` | `16` | Log files larger than this are parsed from their first 2 MB and last 8 MB only. |
 | `DASHBOARD_URL` | *(empty)* | Link appended to alert messages. |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `TELEGRAM_THREAD_ID` | *(empty)* | Telegram channel defaults (the Settings panel overrides them). |
 | `DISCORD_WEBHOOK_URL` | *(empty)* | Discord channel default. |
