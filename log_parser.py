@@ -11,9 +11,12 @@ structured run records. Designed to be resilient to minor script variations:
 No log format is assumed beyond what's already emitted by the scripts;
 nothing here requires modifying them.
 """
+import logging
 import os
 import re
 from datetime import date, datetime, timedelta
+
+log = logging.getLogger("rsync-watch.parser")
 
 LOG_FILENAME_RE = re.compile(r"_(\d{8})_(\d{6})\.log$")
 START_LINE_RE = re.compile(r"--- Starting(?: Batch)? Rsync at (.+?) ---", re.I)
@@ -49,6 +52,41 @@ WARNING_EXIT_CODES = {24}
 # Completed runs never change on disk, so their parse result can be reused as
 # long as (mtime, size) is unchanged. Keyed by absolute path.
 _parse_cache = {}
+
+
+def _env_mb(name, default):
+    try:
+        return int(float(os.environ.get(name, "") or default) * 1024 * 1024)
+    except ValueError:
+        return int(default * 1024 * 1024)
+
+
+# Logs bigger than this are read head + tail only. Everything the parser needs
+# (start marker at the top; stats block and end markers at the bottom) lives
+# at the two ends, and a runaway multi-GB log must not take the container
+# down with it. MAX_LOG_MB raises the limit.
+MAX_LOG_BYTES = _env_mb("MAX_LOG_MB", 16)
+HEAD_BYTES = 2 * 1024 * 1024
+TAIL_BYTES = 8 * 1024 * 1024
+_truncation_warned = set()
+
+
+def _read_log(path, size):
+    with open(path, "rb") as f:
+        if size <= MAX_LOG_BYTES:
+            raw = f.read()
+        else:
+            head = f.read(HEAD_BYTES)
+            f.seek(max(size - TAIL_BYTES, HEAD_BYTES))
+            note = f"\n[... {size - HEAD_BYTES - TAIL_BYTES} bytes in the middle skipped by rsync-watch ...]\n"
+            raw = head + note.encode() + f.read()
+            if path not in _truncation_warned:
+                _truncation_warned.add(path)
+                log.warning("%s is %.0f MB; only its head and tail were parsed (raise MAX_LOG_MB to change)",
+                            path, size / 1024 / 1024)
+    # Logs are written by bash scripts in UTF-8; don't depend on the platform
+    # default encoding (the ✅/❌ markers break otherwise).
+    return raw.decode("utf-8", errors="replace")
 
 
 def parse_bash_date(s):
@@ -129,7 +167,7 @@ def parse_log_file(path):
     if cached is not None and cached[0] == cache_key:
         return cached[1]
 
-    result = _parse_log_content(path)
+    result = _parse_log_content(path, st.st_size)
     # Only cache final results: a marker-less log must be re-evaluated each
     # time so "running" can age into "interrupted" even if the file is idle.
     if result and result["status"] in ("success", "warning", "failed"):
@@ -145,12 +183,9 @@ def prune_parse_cache():
             _parse_cache.pop(path, None)
 
 
-def _parse_log_content(path):
+def _parse_log_content(path, size=None):
     try:
-        # Logs are written by bash scripts in UTF-8; don't depend on the
-        # platform default encoding (the ✅/❌ markers break otherwise).
-        with open(path, "r", encoding="utf-8", errors="replace") as f:
-            content = f.read()
+        content = _read_log(path, os.path.getsize(path) if size is None else size)
     except OSError:
         return None
 

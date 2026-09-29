@@ -295,3 +295,21 @@ def test_prune_parse_cache(tmp_path):
     os.remove(path)
     log_parser.prune_parse_cache()
     assert path not in log_parser._parse_cache
+
+
+def test_huge_log_is_parsed_from_head_and_tail(tmp_path, monkeypatch):
+    # A multi-GB verbose log must not be read whole; the start marker lives at
+    # the top and the stats block + end marker at the bottom, which is all the
+    # parser needs.
+    monkeypatch.setattr(log_parser, "MAX_LOG_BYTES", 4096)
+    monkeypatch.setattr(log_parser, "HEAD_BYTES", 512)
+    monkeypatch.setattr(log_parser, "TAIL_BYTES", 1024)
+    filler = "".join(f"folder-a/file_{i:06d}.bin\n" for i in range(2000))   # ~50 KB of listing
+    content = SINGLE_SUCCESS.replace("sending incremental file list\n", "sending incremental file list\n" + filler)
+    path = write_log(tmp_path, "rsync_big_20260711_030001.log", content)
+    run = parse_log_file(path)
+    assert run["status"] == "success"
+    assert run["start_time"] == "2026-07-11T03:00:01"
+    assert run["size_transferred_bytes"] == 1234567
+    assert run["duration_seconds"] == 12 * 60 + 40
+    assert run["errors"] == []
