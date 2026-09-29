@@ -1,0 +1,16 @@
+# Keeps the pinned Python packages, the digest-pinned base image and the
+# SHA-pinned GitHub Actions current. One PR per update, weekly.
+version: 2
+updates:
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
