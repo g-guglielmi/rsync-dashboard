@@ -254,6 +254,11 @@ table.intervals td:last-child { width: 140px; }
 .chip--on { color: var(--success); border-color: var(--success-dim); }
 .chip--off { color: var(--warning); border-color: var(--warning-dim); }
 .form-error { color: var(--fail); font-size: 12px; margin: 8px 0; }
+.form-notice {
+  color: var(--warning); font-size: 12px; margin: 0 0 12px; padding: 8px 10px;
+  border: 1px solid var(--warning-dim); border-radius: var(--radius); background: var(--panel-alt);
+  line-height: 1.4;
+}
 
 /* ---------------- Layout ---------------- */
 main {

@@ -22,6 +22,7 @@
     let body = {};
     try { body = await res.json(); } catch (e) { /* no body */ }
     if (res.status === 401) { const err = new Error("Password required"); err.code = 401; throw err; }
+    if (res.status === 403) { const err = new Error(body.error || "Settings are read-only"); err.code = 403; throw err; }
     if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
     return body;
   }
@@ -39,8 +40,22 @@
       renderForm();
     } catch (e) {
       if (e.code === 401) renderPassword(getPw() ? "Wrong password." : "");
+      else if (e.code === 403) renderLocked(e.message);
       else renderError(e.message);
     }
+  }
+
+  // No SETTINGS_PASSWORD on the container: the server keeps settings read-only.
+  function renderLocked(msg) {
+    modal.innerHTML = `
+      <div class="modal__panel modal__panel--narrow">
+        <header class="modal__head"><h2>Settings are read-only</h2><button class="icon-btn" data-close aria-label="Close">✕</button></header>
+        <p class="form-notice">${escapeHtml(msg)}</p>
+        <p class="muted">Add the <code>SETTINGS_PASSWORD</code> variable to the container (on unRAID: edit the
+           container, "Settings Password"), then reopen this panel. Alerts you already configured keep
+           running in the meantime.</p>
+        <footer class="modal__foot"><button type="button" class="btn" data-close>Close</button></footer>
+      </div>`;
   }
 
   function renderPassword(msg) {
@@ -60,6 +75,7 @@
       setPw(modal.querySelector("[name=pw]").value);
       load();
     });
+    modal.querySelector("[name=pw]").focus();   // autofocus doesn't fire on injected markup
   }
 
   function renderError(msg) {
@@ -101,6 +117,7 @@
           <h2>Alert settings</h2>
           <button class="icon-btn" data-close aria-label="Close">✕</button>
         </header>
+        ${current.config_error ? `<p class="form-notice">${escapeHtml(current.config_error)}</p>` : ""}
         <form id="settings-form" autocomplete="off">
           <section class="card">
             <h3>When to alert</h3>
@@ -248,6 +265,7 @@
       if (typeof fetchData === "function") fetchData();   // overdue badges may change
     } catch (e) {
       if (e.code === 401) return renderPassword("Wrong password.");
+      if (e.code === 403) return renderLocked(e.message);
       setStatus(e.message, true);
     }
   }
@@ -264,6 +282,7 @@
       out.className = r === "ok" ? "result result--ok" : "result result--err";
     } catch (e) {
       if (e.code === 401) return renderPassword("Wrong password.");
+      if (e.code === 403) return renderLocked(e.message);
       out.textContent = e.message; out.className = "result result--err";
     }
   }
