@@ -18,7 +18,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 log = logging.getLogger("rsync-watch")
 
 # Shown in the footer next to the source link. Bump on each release.
-APP_VERSION = "0.2.1"
+APP_VERSION = "0.2.2"
 
 app = Flask(__name__)
 # Settings payloads are a few KB; anything bigger is not a settings payload.
